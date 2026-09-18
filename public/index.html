@@ -3,41 +3,50 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pixel Knight Online Duel</title>
+<title>Pixel Knight Online Duel v2</title>
 <style>
-:root{--bg:#08090a;--panel:#16181a;--line:#4d4a3f;--gold:#c9a85e;--red:#aa3f3f;--green:#5b8659;--text:#eee7d6;--muted:#aaa390}
+:root{--panel:#141618;--line:#4f4b40;--gold:#d0ad5b;--red:#ad4542;--green:#63885c;--text:#eee9dc;--muted:#aaa495}
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050505;color:var(--text);font-family:system-ui,Segoe UI,Arial,sans-serif}
 #game{position:relative;width:100%;height:100%;background:#000}
 canvas{display:block}
 #hud{position:absolute;inset:0;pointer-events:none}
 #top{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;gap:12px}
-.card{background:rgba(12,13,14,.82);border:1px solid rgba(190,176,135,.3);backdrop-filter:blur(6px);padding:9px 11px;border-radius:8px}
+.card{background:rgba(12,13,14,.83);border:1px solid rgba(190,176,135,.3);backdrop-filter:blur(7px);padding:9px 11px;border-radius:8px}
 .name{font-weight:800}.small{font-size:11px;color:var(--muted)}
 .bars{width:min(330px,46vw)}
-.row{display:grid;grid-template-columns:55px 1fr 38px;align-items:center;gap:6px;font-size:10px;margin:4px 0}
-.bar{height:8px;background:#272728;border:1px solid #474747;overflow:hidden}.fill{height:100%;transition:width .1s}.hp{background:#a94742}.st{background:#c2a653}
-#cross{position:absolute;left:50%;top:50%;width:12px;height:12px;transform:translate(-50%,-50%);opacity:.75}
+.row{display:grid;grid-template-columns:58px 1fr 38px;align-items:center;gap:6px;font-size:10px;margin:4px 0}
+.bar{height:8px;background:#272728;border:1px solid #474747;overflow:hidden}.fill{height:100%;transition:width .08s}.hp{background:#aa4542}.st{background:#c2a653}
+#cross{position:absolute;left:50%;top:50%;width:16px;height:16px;transform:translate(-50%,-50%);opacity:.8;transition:transform .07s,color .07s}
 #cross:before,#cross:after{content:"";position:absolute;background:#eee}
-#cross:before{left:5px;top:0;width:2px;height:12px}#cross:after{top:5px;left:0;width:12px;height:2px}
+#cross:before{left:7px;top:1px;width:2px;height:14px}#cross:after{top:7px;left:1px;width:14px;height:2px}
+#cross.hit{transform:translate(-50%,-50%) scale(1.45)}
+#cross.hit:before,#cross.hit:after{background:#ffd85e}
 #bottom{position:absolute;left:12px;bottom:12px;display:flex;gap:8px;align-items:end}
-#weaponCard{min-width:180px}.ammo{font-size:18px;font-weight:900}
-#blockState{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);display:none;font-weight:900;letter-spacing:.16em}
+#weaponCard{min-width:210px}.ammo{font-size:15px;font-weight:900;margin-top:3px}
+#blockState{position:absolute;left:50%;bottom:88px;transform:translateX(-50%);display:none;font-weight:900;letter-spacing:.16em}
 #centerMsg{position:absolute;left:50%;top:25%;transform:translateX(-50%);font-size:clamp(22px,4vw,44px);font-weight:900;text-align:center;text-shadow:0 4px 12px #000}
 #score{position:absolute;left:50%;top:14px;transform:translateX(-50%);font-size:22px;font-weight:900}
 #help{position:absolute;right:12px;bottom:12px;font-size:10px;line-height:1.45;text-align:right}
-.overlay{position:absolute;inset:0;background:rgba(4,5,5,.9);display:none;align-items:center;justify-content:center;padding:18px;z-index:30}
+#damage{position:absolute;inset:0;background:radial-gradient(circle,transparent 40%,rgba(165,22,22,.75));opacity:0;transition:opacity .12s}
+#damageNumbers{position:absolute;inset:0;overflow:hidden}
+.damageNum{position:absolute;z-index:10;font-weight:1000;font-size:27px;color:#fff;text-shadow:0 2px 0 #000,0 0 6px #000;animation:dmg .78s ease-out forwards}
+.damageNum.blocked{color:#67b9ff}.damageNum.heavy{color:#ffd65c;font-size:31px}
+@keyframes dmg{0%{transform:translate(-50%,-50%) scale(.6);opacity:0}20%{transform:translate(-50%,-65%) scale(1.15);opacity:1}100%{transform:translate(-50%,-130%) scale(.95);opacity:0}}
+.overlay{position:absolute;inset:0;background:rgba(4,5,5,.91);display:none;align-items:center;justify-content:center;padding:18px;z-index:30}
 .overlay.show{display:flex}
-.modal{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#121416;border:1px solid #565348;border-radius:14px;padding:20px;box-shadow:0 25px 80px #000}
-.modal h1,.modal h2{margin:0 0 10px}.modal p{color:#bbb3a0;line-height:1.55}
+.modal{width:min(820px,96vw);max-height:92vh;overflow:auto;background:#121416;border:1px solid #565348;border-radius:14px;padding:20px;box-shadow:0 25px 80px #000}
+.modal h1,.modal h2,.modal h3{margin-top:0}.modal p{color:#bbb3a0;line-height:1.5}
 button,input{font:inherit}button{border:1px solid #666154;background:#232528;color:#f1ead8;border-radius:8px;padding:10px 13px;font-weight:700;cursor:pointer}
-button:hover{border-color:#c9a85e}button.primary{background:#30462f;border-color:#688165}
+button:hover{border-color:#c9a85e}button.primary{background:#30462f;border-color:#688165}button:disabled{opacity:.5;cursor:not-allowed}
 input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-radius:8px;padding:11px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lobbybox{border:1px solid #45443f;background:#191b1d;padding:12px;border-radius:10px}
 .roomcode{font-size:31px;font-weight:900;letter-spacing:.16em;color:#e5c777}
-.store{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:10px}.item{border:1px solid #48463f;background:#1a1c1e;padding:10px;border-radius:8px}.item strong{display:block;margin-bottom:5px}.item span{color:#caa85d}
-#damage{position:absolute;inset:0;background:radial-gradient(circle,transparent 40%,rgba(165,22,22,.75));opacity:0;transition:opacity .12s}
-@media(max-width:650px){.grid2{grid-template-columns:1fr}.bars{width:48vw}#help{display:none}}
+.store{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:10px}
+.item{border:1px solid #48463f;background:#1a1c1e;padding:10px;border-radius:8px}.item strong{display:block;margin-bottom:4px}.item span{color:#caa85d}
+.mapGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.mapBtn.active{border-color:#e2bd61;background:#3a3320}
+.invGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+@media(max-width:650px){.grid2,.mapGrid{grid-template-columns:1fr}.bars{width:48vw}#help{display:none}}
 </style>
 </head>
 <body>
@@ -47,6 +56,7 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
     <div class="card">
       <div class="name" id="meName">Tu</div>
       <div class="small" id="roomLabel">Non connesso</div>
+      <div class="small" id="mapLabel"></div>
     </div>
     <div id="score">0 — 0</div>
     <div class="card bars">
@@ -55,34 +65,21 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
     </div>
   </div>
   <div id="cross"></div>
+  <div id="damageNumbers"></div>
   <div id="centerMsg"></div>
-  <div id="blockState" class="card">PARATA</div>
-  <div id="bottom">
-    <div class="card" id="weaponCard"><div class="small">ARMA</div><b id="weaponText">Spada</b><div class="ammo" id="ammoText"></div></div>
-  </div>
-  <div id="help" class="card">WASD movimento · SHIFT corsa<br>Mouse guarda · CLICK SX attacco singolo<br>CLICK DX tieni la parata · I inventario · ESC libera mouse</div>
+  <div id="blockState" class="card">SCUDO ALZATO</div>
+  <div id="bottom"><div class="card" id="weaponCard"><div class="small">EQUIPAGGIAMENTO</div><b id="weaponText">Spada</b><div class="ammo" id="ammoText"></div></div></div>
+  <div id="help" class="card">W avanti · S indietro · A sinistra · D destra<br>SPAZIO salto · SHIFT corsa · Mouse guarda · CLICK SX attacco<br>CLICK DX scudo · I inventario · ESC libera mouse</div>
   <div id="damage"></div>
 </div>
 
 <div class="overlay show" id="menu">
  <div class="modal">
-  <h1>⚔ Pixel Knight Online Duel</h1>
-  <p>Duello medievale 1 contro 1 in prima persona. Crea una stanza privata, manda il codice al tuo amico e combattete fino a <b>3 round vinti</b>.</p>
+  <h1>⚔ Pixel Knight Online Duel v2</h1>
+  <p>Duello medievale 1 contro 1. Crea una stanza privata, scegli la mappa e combatti fino a 3 round vinti.</p>
   <div class="grid2">
-   <div class="lobbybox">
-    <h3>Crea stanza</h3>
-    <input id="createName" maxlength="18" placeholder="Il tuo nome"/>
-    <div style="height:8px"></div>
-    <button class="primary" id="createBtn">Crea stanza privata</button>
-   </div>
-   <div class="lobbybox">
-    <h3>Entra nella stanza</h3>
-    <input id="joinName" maxlength="18" placeholder="Il tuo nome"/>
-    <div style="height:7px"></div>
-    <input id="joinCode" maxlength="6" placeholder="CODICE"/>
-    <div style="height:8px"></div>
-    <button class="primary" id="joinBtn">Entra nel duello</button>
-   </div>
+   <div class="lobbybox"><h3>Crea stanza</h3><input id="createName" maxlength="18" placeholder="Il tuo nome"/><div style="height:8px"></div><button class="primary" id="createBtn">Crea stanza privata</button></div>
+   <div class="lobbybox"><h3>Entra nella stanza</h3><input id="joinName" maxlength="18" placeholder="Il tuo nome"/><div style="height:7px"></div><input id="joinCode" maxlength="6" placeholder="CODICE"/><div style="height:8px"></div><button class="primary" id="joinBtn">Entra nel duello</button></div>
   </div>
   <p class="small" id="menuError"></p>
  </div>
@@ -92,14 +89,12 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
  <div class="modal">
   <h2>Stanza privata</h2>
   <div class="roomcode" id="roomCode">------</div>
-  <p>Invia questo codice al tuo amico. Quando siete entrambi nella stanza, scegli l'equipaggiamento e premete Pronto.</p>
+  <p>Invia il codice al tuo amico. L'host sceglie la mappa; poi entrambi premete Pronto.</p>
   <div id="players"></div>
-  <h3>Armeria</h3>
-  <div class="store">
-   <div class="item"><strong>⚔ Spada</strong><p class="small">Gratis. 27 danni, rapida e affidabile.</p><button data-buy="sword">Equipaggia</button></div>
-   <div class="item"><strong>🏹 Arco</strong><p class="small">Arma a distanza + 8 frecce.</p><span>70 monete</span><br><button data-buy="bow">Compra</button></div>
-   <div class="item"><strong>➶ 12 frecce</strong><p class="small">Rifornimento per l'arco.</p><span>20 monete</span><br><button data-buy="arrows">Compra</button></div>
-  </div>
+  <h3>Mappe</h3>
+  <div class="mapGrid" id="mapGrid"></div>
+  <h3 style="margin-top:16px">Armeria</h3>
+  <div class="store" id="store"></div>
   <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="primary" id="readyBtn">✓ Pronto</button>
     <button id="enterGameBtn">Entra nell'arena</button>
@@ -108,9 +103,9 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
 </div>
 
 <div class="overlay" id="inventory">
- <div class="modal" style="max-width:520px">
+ <div class="modal" style="max-width:650px">
   <h2>🎒 Inventario</h2>
-  <div id="invContent"></div>
+  <div class="invGrid" id="invContent"></div>
   <div style="margin-top:12px"><button id="closeInv">Chiudi</button></div>
  </div>
 </div>
@@ -124,16 +119,32 @@ const socket=io();
 const game=document.getElementById("game");
 const menu=document.getElementById("menu"),lobby=document.getElementById("lobby"),inventory=document.getElementById("inventory");
 const ui={
- meName:document.getElementById("meName"),roomLabel:document.getElementById("roomLabel"),score:document.getElementById("score"),
- hpFill:document.getElementById("hpFill"),hpText:document.getElementById("hpText"),stFill:document.getElementById("stFill"),stText:document.getElementById("stText"),
- center:document.getElementById("centerMsg"),weapon:document.getElementById("weaponText"),ammo:document.getElementById("ammoText"),
- block:document.getElementById("blockState"),damage:document.getElementById("damage")
+ meName:document.getElementById("meName"),roomLabel:document.getElementById("roomLabel"),mapLabel:document.getElementById("mapLabel"),
+ score:document.getElementById("score"),hpFill:document.getElementById("hpFill"),hpText:document.getElementById("hpText"),
+ stFill:document.getElementById("stFill"),stText:document.getElementById("stText"),center:document.getElementById("centerMsg"),
+ weapon:document.getElementById("weaponText"),ammo:document.getElementById("ammoText"),block:document.getElementById("blockState"),
+ damage:document.getElementById("damage"),cross:document.getElementById("cross"),damageNumbers:document.getElementById("damageNumbers")
 };
+
+const MAP_INFO={
+ keep:{name:"Fortezza di Pietra",arena:16,obstacles:[{x:0,z:0,r:1.65}]},
+ forest:{name:"Rovine della Foresta",arena:18,obstacles:[{x:-5.5,z:-4,r:.95},{x:5,z:4.5,r:.95},{x:-4,z:6.2,r:.85},{x:6,z:-5.5,r:.85}]},
+ colosseum:{name:"Colosseo delle Ceneri",arena:17,obstacles:[{x:-6.2,z:-6.2,r:.8},{x:6.2,z:-6.2,r:.8},{x:-6.2,z:6.2,r:.8},{x:6.2,z:6.2,r:.8}]}
+};
+const WEAPON_NAMES={sword:"⚔ Spada",spear:"🔱 Lancia",axe:"🪓 Ascia da guerra",bow:"🏹 Arco"};
+const STORE=[
+ {id:"bow",name:"🏹 Arco lungo",cost:75,desc:"Arma a distanza + 8 frecce."},
+ {id:"arrows",name:"➶ 12 frecce",cost:20,desc:"Munizioni aggiuntive per l'arco."},
+ {id:"spear",name:"🔱 Lancia",cost:65,desc:"Portata maggiore, 24 danni."},
+ {id:"axe",name:"🪓 Ascia da guerra",cost:85,desc:"Lenta ma devastante: 40 danni."},
+ {id:"shield",name:"🛡 Scudo reale",cost:120,desc:"Costoso, ma permette di parare con click destro."}
+];
+
 let myId=null,roomCode="",state=null,me=null,other=null,playing=false,locked=false;
-let local={x:-9,z:0,yaw:Math.PI/2,pitch:0,blocking:false};
-let keys={},last=performance.now(),attackAnim=0,hitFlash=0,blockFlash=0;
+let local={x:-9,y:0,z:0,vy:0,onGround:true,yaw:-Math.PI/2,pitch:0,blocking:false};
+let keys={},last=performance.now(),attackAnim=0,hitFlash=0,opponentHitFlash=0,currentMap="";
 let remotePos=new THREE.Vector3(),remoteYaw=0;
-let arrowMeshes=new Map();
+const arrowMeshes=new Map();
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
 renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));
@@ -142,256 +153,331 @@ renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.05;
+renderer.toneMappingExposure=1.08;
 game.insertBefore(renderer.domElement,game.firstChild);
 
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x8291a0);
-scene.fog=new THREE.FogExp2(0x8995a0,.018);
-
-const camera=new THREE.PerspectiveCamera(82,innerWidth/innerHeight,.05,120);
+const camera=new THREE.PerspectiveCamera(82,innerWidth/innerHeight,.05,140);
 camera.rotation.order="YXZ";
+const hemi=new THREE.HemisphereLight(0xd7e1ea,0x383025,1.2);scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffefd4,2.0);sun.position.set(-13,24,-9);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-32;sun.shadow.camera.right=32;sun.shadow.camera.top=32;sun.shadow.camera.bottom=-32;scene.add(sun);
 
-const hemi=new THREE.HemisphereLight(0xcbd9e9,0x3c3426,1.25);scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xffedce,2.0);sun.position.set(-12,24,-8);sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-30;sun.shadow.camera.right=30;sun.shadow.camera.top=30;sun.shadow.camera.bottom=-30;scene.add(sun);
-
-function stoneTexture(){
- const c=document.createElement("canvas");c.width=c.height=256;const x=c.getContext("2d");
- x.fillStyle="#77756e";x.fillRect(0,0,256,256);
- for(let y=0;y<256;y+=32)for(let xx=(y/32%2)*16-16;xx<256;xx+=32){
-   const v=100+Math.floor(Math.random()*30);x.fillStyle=`rgb(${v},${v},${v-4})`;x.fillRect(xx+1,y+1,30,30);
-   x.strokeStyle="rgba(20,20,20,.35)";x.strokeRect(xx,y,32,32);
+const arenaGroup=new THREE.Group();scene.add(arenaGroup);
+function clearGroup(g){while(g.children.length){const o=g.children.pop();o.geometry?.dispose?.();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose?.());else o.material.dispose?.();}}}
+function box(w,h,d,color,x,y,z,parent=arenaGroup){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.88,metalness:.05}));
+ m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;parent.add(m);return m;
+}
+function pillar(x,z,color=0x77746c){
+ const p=new THREE.Mesh(new THREE.CylinderGeometry(.7,.82,4.6,12),new THREE.MeshStandardMaterial({color,roughness:.9}));
+ p.position.set(x,2.3,z);p.castShadow=p.receiveShadow=true;arenaGroup.add(p);
+}
+function torch(x,z){
+ const l=new THREE.PointLight(0xff7735,2.0,7,2);l.position.set(x,1.8,z);arenaGroup.add(l);
+ const f=new THREE.Mesh(new THREE.SphereGeometry(.18,8,6),new THREE.MeshBasicMaterial({color:0xff7b32}));f.position.copy(l.position);arenaGroup.add(f);
+}
+function buildArena(id){
+ if(currentMap===id)return;currentMap=id;clearGroup(arenaGroup);
+ const m=MAP_INFO[id]||MAP_INFO.keep;
+ if(id==="keep"){
+  scene.background=new THREE.Color(0x7f8d9a);scene.fog=new THREE.FogExp2(0x89939c,.018);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(34,34),new THREE.MeshStandardMaterial({color:0x6f6d67,roughness:.96}));
+  ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;arenaGroup.add(ground);
+  for(const [x,z,w,d] of [[0,-17,34,1],[0,17,34,1],[-17,0,1,34],[17,0,1,34]])box(w,5,d,0x676761,x,2.5,z);
+  for(const [x,z] of [[-16,-16],[16,-16],[-16,16],[16,16]])pillar(x,z);
+  const well=new THREE.Mesh(new THREE.CylinderGeometry(1.65,1.65,1.3,18),new THREE.MeshStandardMaterial({color:0x575751,roughness:.9}));
+  well.position.set(0,.65,0);well.castShadow=well.receiveShadow=true;arenaGroup.add(well);
+  [[-11,-11],[11,-11],[-11,11],[11,11]].forEach(p=>torch(...p));
+ }else if(id==="forest"){
+  scene.background=new THREE.Color(0x647a69);scene.fog=new THREE.FogExp2(0x637768,.024);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(38,38),new THREE.MeshStandardMaterial({color:0x405d3d,roughness:1}));
+  ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;arenaGroup.add(ground);
+  for(const [x,z] of [[-5.5,-4],[5,4.5],[-4,6.2],[6,-5.5]])pillar(x,z,0x79766a);
+  for(let i=0;i<26;i++){
+    const a=i/26*Math.PI*2,r=17+Math.sin(i*4)*.8,x=Math.cos(a)*r,z=Math.sin(a)*r;
+    box(.55,3.4,.55,0x49351f,x,1.7,z);
+    const crown=new THREE.Mesh(new THREE.SphereGeometry(1.3,9,7),new THREE.MeshStandardMaterial({color:0x315437,roughness:1}));
+    crown.position.set(x,3.7,z);crown.castShadow=true;arenaGroup.add(crown);
+  }
+  box(10,1.6,.8,0x6e6a60,0,.8,-17.5);box(10,1.6,.8,0x6e6a60,0,.8,17.5);
+ }else{
+  scene.background=new THREE.Color(0xb58b63);scene.fog=new THREE.FogExp2(0xb79570,.014);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(36,36),new THREE.MeshStandardMaterial({color:0xb58b5c,roughness:1}));
+  ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;arenaGroup.add(ground);
+  const wallMat=new THREE.MeshStandardMaterial({color:0x8d674b,roughness:.95});
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(17.8,17.8,5,48,1,true),wallMat);ring.position.y=2.5;ring.castShadow=ring.receiveShadow=true;arenaGroup.add(ring);
+  [[-6.2,-6.2],[6.2,-6.2],[-6.2,6.2],[6.2,6.2]].forEach(p=>{pillar(...p,0xb79a79);torch(...p)});
  }
- const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(8,8);t.colorSpace=THREE.SRGBColorSpace;return t;
-}
-const stone=stoneTexture();
-const groundMat=new THREE.MeshStandardMaterial({map:stone,roughness:.95,metalness:.02});
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(34,34),groundMat);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-
-function meshBox(w,h,d,color,x,y,z){
- const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.88,metalness:.06}));
- m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;scene.add(m);return m;
-}
-// arena walls and towers
-for(const [x,z,w,d] of [[0,-17,34,1],[0,17,34,1],[-17,0,1,34],[17,0,1,34]]) meshBox(w,5,d,0x686762,x,2.5,z);
-for(const [x,z] of [[-16,-16],[16,-16],[-16,16],[16,16]]){
- const tower=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.4,7,12),new THREE.MeshStandardMaterial({color:0x77746c,roughness:.9}));
- tower.position.set(x,3.5,z);tower.castShadow=tower.receiveShadow=true;scene.add(tower);
- const roof=new THREE.Mesh(new THREE.ConeGeometry(2.8,2.4,12),new THREE.MeshStandardMaterial({color:0x57322d,roughness:.85}));
- roof.position.set(x,8.2,z);roof.castShadow=true;scene.add(roof);
-}
-// braziers
-for(const [x,z] of [[-11,-11],[11,-11],[-11,11],[11,11]]){
- meshBox(.7,1,.7,0x3a3025,x,.5,z);
- const l=new THREE.PointLight(0xff7b35,2.2,8,2);l.position.set(x,1.8,z);scene.add(l);
- const flame=new THREE.Mesh(new THREE.SphereGeometry(.22,10,8),new THREE.MeshBasicMaterial({color:0xff7b32}));
- flame.position.set(x,1.65,z);scene.add(flame);
 }
 
-function makeKnight(color=0x3e5874){
+function makeKnight(color=0x6f3436){
  const g=new THREE.Group();
- const body=new THREE.Mesh(new THREE.CapsuleGeometry(.42,.85,5,10),new THREE.MeshStandardMaterial({color,roughness:.65,metalness:.35}));
- body.position.y=1.05;body.castShadow=true;g.add(body);
- const head=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12),new THREE.MeshStandardMaterial({color:0xa0a5a6,roughness:.5,metalness:.65}));
- head.position.y=1.95;head.castShadow=true;g.add(head);
- const visor=new THREE.Mesh(new THREE.BoxGeometry(.5,.13,.1),new THREE.MeshStandardMaterial({color:0x25282a,roughness:.4,metalness:.8}));
- visor.position.set(0,1.96,-.31);g.add(visor);
- const armMat=new THREE.MeshStandardMaterial({color:0x8d9192,roughness:.55,metalness:.5});
- for(const sx of [-1,1]){
-  const arm=new THREE.Mesh(new THREE.CapsuleGeometry(.12,.65,4,8),armMat);arm.position.set(.53*sx,1.15,0);arm.rotation.z=.18*sx;arm.castShadow=true;g.add(arm);
- }
- const legMat=new THREE.MeshStandardMaterial({color:0x34383a,roughness:.8});
- for(const sx of [-1,1]){
-  const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.65,4,8),legMat);leg.position.set(.21*sx,.36,0);leg.castShadow=true;g.add(leg);
- }
+ const bodyMat=new THREE.MeshStandardMaterial({color,roughness:.65,metalness:.25,emissive:0x000000});
+ const metal=new THREE.MeshStandardMaterial({color:0x929798,roughness:.48,metalness:.7,emissive:0x000000});
+ const body=new THREE.Mesh(new THREE.CapsuleGeometry(.42,.85,5,10),bodyMat);body.position.y=1.05;body.castShadow=true;g.add(body);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12),metal);head.position.y=1.95;head.castShadow=true;g.add(head);
+ const visor=new THREE.Mesh(new THREE.BoxGeometry(.5,.13,.1),new THREE.MeshStandardMaterial({color:0x25282a,roughness:.4,metalness:.8}));visor.position.set(0,1.96,-.31);g.add(visor);
+ for(const sx of [-1,1]){const arm=new THREE.Mesh(new THREE.CapsuleGeometry(.12,.65,4,8),metal);arm.position.set(.53*sx,1.15,0);arm.rotation.z=.18*sx;arm.castShadow=true;g.add(arm)}
+ for(const sx of [-1,1]){const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.65,4,8),new THREE.MeshStandardMaterial({color:0x34383a,roughness:.8,emissive:0x000000}));leg.position.set(.21*sx,.36,0);leg.castShadow=true;g.add(leg)}
  return g;
 }
-const opponent=makeKnight(0x6f3436);scene.add(opponent);opponent.visible=false;
+const opponent=makeKnight();scene.add(opponent);opponent.visible=false;
 
 const vm=new THREE.Group();camera.add(vm);scene.add(camera);
 const skinMat=new THREE.MeshStandardMaterial({color:0xb78d69,roughness:.85});
 const gloveMat=new THREE.MeshStandardMaterial({color:0x55595b,roughness:.55,metalness:.45});
-function arm(x){
- const a=new THREE.Mesh(new THREE.CapsuleGeometry(.09,.56,4,8),skinMat);a.position.set(x,-.39,-.75);a.rotation.x=1.05;a.rotation.z=x>0?-.12:.12;vm.add(a);
- const g=new THREE.Mesh(new THREE.BoxGeometry(.22,.18,.22),gloveMat);g.position.set(x,-.27,-1.03);vm.add(g);
-}
+function arm(x){const a=new THREE.Mesh(new THREE.CapsuleGeometry(.09,.56,4,8),skinMat);a.position.set(x,-.39,-.75);a.rotation.x=1.05;a.rotation.z=x>0?-.12:.12;vm.add(a);const g=new THREE.Mesh(new THREE.BoxGeometry(.22,.18,.22),gloveMat);g.position.set(x,-.27,-1.03);vm.add(g)}
 arm(-.32);arm(.36);
-const swordGroup=new THREE.Group();vm.add(swordGroup);
-const handle=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.36,10),new THREE.MeshStandardMaterial({color:0x5f3f27,roughness:.8}));handle.rotation.x=Math.PI/2;swordGroup.add(handle);
-const blade=new THREE.Mesh(new THREE.BoxGeometry(.075,.035,1.15),new THREE.MeshStandardMaterial({color:0xd5d8d8,roughness:.22,metalness:.92}));blade.position.z=-.68;swordGroup.add(blade);
-const guard=new THREE.Mesh(new THREE.BoxGeometry(.45,.055,.07),new THREE.MeshStandardMaterial({color:0xb08e42,roughness:.35,metalness:.72}));guard.position.z=-.1;swordGroup.add(guard);
+
+const swordGroup=new THREE.Group(),spearGroup=new THREE.Group(),axeGroup=new THREE.Group(),bowGroup=new THREE.Group(),shieldGroup=new THREE.Group();
+vm.add(swordGroup,spearGroup,axeGroup,bowGroup,shieldGroup);
+
+function cylinder(r,h,color){return new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,10),new THREE.MeshStandardMaterial({color,roughness:.7,metalness:.15}))}
+function bladeBox(w,h,d,color=0xd7dbdc){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.22,metalness:.9}))}
+
+let h=cylinder(.04,.36,0x5f3f27);h.rotation.x=Math.PI/2;swordGroup.add(h);
+let b=bladeBox(.075,.035,1.15);b.position.z=-.68;swordGroup.add(b);
+let g=bladeBox(.45,.055,.07,0xb08e42);g.position.z=-.1;swordGroup.add(g);
 swordGroup.position.set(.37,-.23,-.87);swordGroup.rotation.set(.06,-.12,-.05);
 
-const bowGroup=new THREE.Group();vm.add(bowGroup);bowGroup.visible=false;
-const bowMat=new THREE.MeshStandardMaterial({color:0x70451f,roughness:.72});
-const bow=new THREE.Mesh(new THREE.TorusGeometry(.55,.025,8,28,Math.PI*1.35),bowMat);bow.rotation.y=Math.PI/2;bow.rotation.z=-.68;bowGroup.add(bow);
-bowGroup.position.set(.34,-.2,-.95);
+let shaft=cylinder(.035,1.75,0x6b4c2d);shaft.rotation.x=Math.PI/2;spearGroup.add(shaft);
+let tip=new THREE.Mesh(new THREE.ConeGeometry(.09,.38,8),new THREE.MeshStandardMaterial({color:0xd9dddd,metalness:.9,roughness:.2}));tip.rotation.x=-Math.PI/2;tip.position.z=-1.05;spearGroup.add(tip);
+spearGroup.position.set(.34,-.25,-1.0);
 
-function setWeapon(w){
- swordGroup.visible=w!=="bow";bowGroup.visible=w==="bow";
+let axeHandle=cylinder(.045,.72,0x66452d);axeHandle.rotation.x=Math.PI/2;axeGroup.add(axeHandle);
+let axeHead=bladeBox(.48,.18,.12,0xb9bfc0);axeHead.position.z=-.42;axeGroup.add(axeHead);
+axeGroup.position.set(.38,-.24,-.83);
+
+const bow=new THREE.Mesh(new THREE.TorusGeometry(.55,.025,8,28,Math.PI*1.35),new THREE.MeshStandardMaterial({color:0x70451f,roughness:.72}));bow.rotation.y=Math.PI/2;bow.rotation.z=-.68;bowGroup.add(bow);bowGroup.position.set(.34,-.2,-.95);
+
+const shield=new THREE.Mesh(new THREE.CylinderGeometry(.44,.5,.08,12),new THREE.MeshStandardMaterial({color:0x5f6d77,metalness:.55,roughness:.45}));
+shield.rotation.z=Math.PI/2;shieldGroup.add(shield);shieldGroup.position.set(-.48,-.18,-.85);shieldGroup.rotation.y=.25;
+
+const basePos={
+ sword:new THREE.Vector3(.37,-.23,-.87),spear:new THREE.Vector3(.34,-.25,-1),axe:new THREE.Vector3(.38,-.24,-.83),bow:new THREE.Vector3(.34,-.2,-.95)
+};
+function setEquipment(){
+ const w=me?.weapon||"sword";
+ swordGroup.visible=w==="sword";spearGroup.visible=w==="spear";axeGroup.visible=w==="axe";bowGroup.visible=w==="bow";
+ shieldGroup.visible=!!me?.shieldEquipped && w!=="bow";
 }
 
-function resize(){
- renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
-}
+function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
 addEventListener("resize",resize);
 
-function meFromState(){
- if(!state||!myId)return null;
- return state.players.find(p=>p.id===myId)||null;
-}
-function otherFromState(){
- if(!state||!myId)return null;
- return state.players.find(p=>p.id!==myId)||null;
-}
+function meFromState(){return state?.players?.find(p=>p.id===myId)||null}
+function otherFromState(){return state?.players?.find(p=>p.id!==myId)||null}
+function weaponName(p){return WEAPON_NAMES[p?.weapon]||"⚔ Spada"}
+
 function refreshHud(){
- me=meFromState();other=otherFromState();
- if(!me)return;
- ui.meName.textContent=me.name;ui.roomLabel.textContent="Stanza "+roomCode;
- ui.hpFill.style.width=me.hp+"%";ui.hpText.textContent=Math.round(me.hp);
- ui.stFill.style.width=me.stamina+"%";ui.stText.textContent=Math.round(me.stamina);
- ui.weapon.textContent=me.weapon==="bow"?"Arco":"Spada";
- ui.ammo.textContent=me.weapon==="bow" ? "Frecce: "+me.ammo : "";
- ui.block.style.display=local.blocking?"block":"none";
- setWeapon(me.weapon);
- const a=me.score||0,b=other?.score||0;ui.score.textContent=`${a} — ${b}`;
+ me=meFromState();other=otherFromState();if(!me)return;
+ ui.meName.textContent=me.name;ui.roomLabel.textContent="Stanza "+roomCode;ui.mapLabel.textContent=state?.mapName||"";
+ ui.hpFill.style.width=me.hp+"%";ui.hpText.textContent=Math.round(me.hp);ui.stFill.style.width=me.stamina+"%";ui.stText.textContent=Math.round(me.stamina);
+ ui.weapon.textContent=weaponName(me)+(me.shieldEquipped?" + 🛡":"");
+ ui.ammo.textContent=me.weapon==="bow"?"Frecce: "+me.ammo:(me.shieldOwned?(me.shieldEquipped?"Scudo equipaggiato":"Scudo nello zaino"):"");
+ ui.block.style.display=local.blocking&&me.shieldEquipped?"block":"none";
+ const a=me.score||0,b=other?.score||0;ui.score.textContent=`${a} — ${b}`;setEquipment();
+}
+
+function renderMapButtons(){
+ const c=document.getElementById("mapGrid");if(!state||!me)return;c.innerHTML="";
+ for(const [id,m] of Object.entries(MAP_INFO)){
+  const b=document.createElement("button");b.className="mapBtn"+(state.map===id?" active":"");b.textContent=m.name;
+  b.disabled=state.hostId!==myId;b.onclick=()=>socket.emit("setMap",id);c.appendChild(b);
+ }
+}
+function renderStore(){
+ const c=document.getElementById("store");if(!me)return;c.innerHTML="";
+ for(const it of STORE){
+  const owned=it.id==="shield"?me.shieldOwned:(it.id==="arrows"?false:!!me.owned?.[it.id]);
+  const d=document.createElement("div");d.className="item";
+  d.innerHTML=`<strong>${it.name}</strong><p class="small">${it.desc}</p><span>🪙 ${it.cost}</span><br>`;
+  const b=document.createElement("button");b.style.marginTop="7px";
+  if(owned){b.textContent="Posseduto";b.disabled=true}else{b.textContent="Compra";b.onclick=()=>socket.emit("purchase",it.id)}
+  d.appendChild(b);c.appendChild(d);
+ }
 }
 function refreshLobby(){
- if(!state)return;
- document.getElementById("roomCode").textContent=roomCode;
+ if(!state)return;document.getElementById("roomCode").textContent=roomCode;
  const ps=document.getElementById("players");ps.innerHTML="";
  state.players.forEach(p=>{
   const d=document.createElement("div");d.className="lobbybox";d.style.margin="6px 0";
-  d.innerHTML=`<b>${p.name}</b> · ${p.weapon==="bow"?"🏹 Arco":"⚔ Spada"} · 🪙 ${p.coins} · ➶ ${p.ammo} ${p.ready?"· ✅ PRONTO":""}`;
+  d.innerHTML=`<b>${p.name}</b>${p.id===state.hostId?" · 👑 HOST":""}<br><span class="small">${weaponName(p)} ${p.shieldEquipped?" + 🛡":""} · 🪙 ${p.coins} · ➶ ${p.ammo} ${p.ready?"· ✅ PRONTO":""}</span>`;
   ps.appendChild(d);
  });
- refreshInventory();
+ renderMapButtons();renderStore();refreshInventory();
 }
 function refreshInventory(){
- const c=document.getElementById("invContent");if(!me)return;
- c.innerHTML=`<div class="lobbybox"><b>⚔ Spada</b><p class="small">Arma base. 27 danni.</p><button id="equipSword">Equipaggia</button></div>
- <div style="height:8px"></div>
- <div class="lobbybox"><b>🏹 Arco</b><p class="small">Frecce disponibili: ${me.ammo}</p><button id="equipBow" ${me.ammo<=0?"disabled":""}>Equipaggia arco</button></div>`;
- c.querySelector("#equipSword").onclick=()=>socket.emit("selectWeapon","sword");
- const eb=c.querySelector("#equipBow");if(eb)eb.onclick=()=>socket.emit("selectWeapon","bow");
+ const c=document.getElementById("invContent");if(!me)return;c.innerHTML="";
+ for(const id of ["sword","spear","axe","bow"]){
+  if(!me.owned?.[id])continue;
+  const d=document.createElement("div");d.className="lobbybox";
+  d.innerHTML=`<b>${WEAPON_NAMES[id]}</b><p class="small">${id==="bow"?"Frecce: "+me.ammo:"Arma da mischia."}</p>`;
+  const b=document.createElement("button");b.textContent=me.weapon===id?"Equipaggiata":"Equipaggia";b.disabled=me.weapon===id;b.onclick=()=>socket.emit("selectWeapon",id);d.appendChild(b);c.appendChild(d);
+ }
+ if(me.shieldOwned){
+  const d=document.createElement("div");d.className="lobbybox";d.innerHTML=`<b>🛡 Scudo reale</b><p class="small">Parata con click destro. Non utilizzabile con l'arco.</p>`;
+  const b=document.createElement("button");b.textContent=me.shieldEquipped?"Togli scudo":"Equipaggia scudo";b.disabled=me.weapon==="bow";b.onclick=()=>socket.emit("toggleShield");d.appendChild(b);c.appendChild(d);
+ }
 }
-function showMessage(t,ms=1600){ui.center.textContent=t;setTimeout(()=>{if(ui.center.textContent===t)ui.center.textContent=""},ms)}
-function enterArena(){
- lobby.classList.remove("show");playing=true;renderer.domElement.requestPointerLock?.();
+function showMessage(t,ms=1500){ui.center.textContent=t;setTimeout(()=>{if(ui.center.textContent===t)ui.center.textContent=""},ms)}
+function showDamageNumber(amount,blocked=false,heavy=false){
+ let x=innerWidth*.5,y=innerHeight*.42;
+ if(other){
+  const v=new THREE.Vector3(other.x,1.9,other.z).project(camera);
+  if(v.z<1){x=(v.x*.5+.5)*innerWidth;y=(-v.y*.5+.5)*innerHeight}
+ }
+ const e=document.createElement("div");e.className="damageNum"+(blocked?" blocked":"")+(heavy?" heavy":"");e.textContent=amount;
+ e.style.left=(x+(Math.random()-.5)*18)+"px";e.style.top=(y+(Math.random()-.5)*12)+"px";
+ ui.damageNumbers.appendChild(e);setTimeout(()=>e.remove(),850);
+ ui.cross.classList.add("hit");setTimeout(()=>ui.cross.classList.remove("hit"),110);
+ opponentHitFlash=.18;
 }
-function openInventory(){
- if(!playing)return;document.exitPointerLock?.();refreshInventory();inventory.classList.add("show");
-}
+function enterArena(){lobby.classList.remove("show");playing=true;renderer.domElement.requestPointerLock?.()}
+function openInventory(){if(!playing)return;document.exitPointerLock?.();refreshInventory();inventory.classList.add("show")}
 function closeInventory(){inventory.classList.remove("show");renderer.domElement.requestPointerLock?.()}
 
-socket.on("joined",d=>{myId=d.id;roomCode=d.code;menu.classList.remove("show");lobby.classList.add("show");});
+socket.on("joined",d=>{myId=d.id;roomCode=d.code;menu.classList.remove("show");lobby.classList.add("show")});
 socket.on("joinError",e=>document.getElementById("menuError").textContent=e);
 socket.on("state",s=>{
- state=s;me=meFromState();other=otherFromState();refreshHud();refreshLobby();
- if(me && !locked && playing){local.x=me.x;local.z=me.z;local.yaw=me.yaw;local.pitch=me.pitch;}
+ const oldMap=state?.map;state=s;me=meFromState();other=otherFromState();if(state.map!==oldMap)buildArena(state.map);
+ refreshHud();refreshLobby();
+ if(me&&!locked&&playing){local.x=me.x;local.y=me.y||0;local.z=me.z;local.yaw=me.yaw;local.pitch=me.pitch}
 });
-socket.on("roundStart",()=>{showMessage("DUELLO!",1200);if(me){local.x=me.x;local.z=me.z;local.yaw=me.yaw;local.pitch=0;}enterArena();});
+socket.on("roundStart",()=>{showMessage("DUELLO!",1200);me=meFromState();if(me){local.x=me.x;local.y=0;local.z=me.z;local.vy=0;local.onGround=true;local.yaw=me.yaw;local.pitch=0}enterArena()});
 socket.on("roundEnd",d=>showMessage(d.winner===myId?"ROUND VINTO":"ROUND PERSO",2600));
 socket.on("matchEnd",d=>showMessage(d.winner===myId?"HAI VINTO IL DUELLO":"DUELLO PERSO",5000));
-socket.on("opponentLeft",()=>{showMessage("L'avversario si è disconnesso",3000);lobby.classList.add("show");playing=false;});
+socket.on("opponentLeft",()=>{showMessage("L'avversario si è disconnesso",3000);lobby.classList.add("show");playing=false});
 socket.on("noAmmo",()=>showMessage("Nessuna freccia",900));
 socket.on("combatEvent",e=>{
- if(e.target===myId&&e.type==="hit"){hitFlash=.22;ui.damage.style.opacity=".75"}
- if(e.target===myId&&e.type==="block"){blockFlash=.15;showMessage("PARATA",500)}
- if(e.owner===myId&&e.type==="swing"){}
+ if(e.target===myId){
+  if(e.type==="hit"){hitFlash=.22;ui.damage.style.opacity=".76"}
+  if(e.type==="block")showMessage("PARATA",500);
+ }
+ if(e.attacker===myId&&(e.type==="hit"||e.type==="block")){
+  showDamageNumber(e.damage,e.type==="block",e.source==="axe");
+ }
 });
 
 document.getElementById("createBtn").onclick=()=>socket.emit("createRoom",{name:document.getElementById("createName").value});
 document.getElementById("joinBtn").onclick=()=>socket.emit("joinRoom",{name:document.getElementById("joinName").value,code:document.getElementById("joinCode").value});
 document.getElementById("readyBtn").onclick=()=>socket.emit("ready");
 document.getElementById("enterGameBtn").onclick=enterArena;
-document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>socket.emit("purchase",b.dataset.buy));
 document.getElementById("closeInv").onclick=closeInventory;
 
 document.addEventListener("pointerlockchange",()=>{locked=document.pointerLockElement===renderer.domElement});
-document.addEventListener("mousemove",e=>{
- if(!locked||!playing)return;
- local.yaw-=e.movementX*.00225;local.pitch=Math.max(-1.15,Math.min(1.15,local.pitch-e.movementY*.0019));
-});
+document.addEventListener("mousemove",e=>{if(!locked||!playing)return;local.yaw-=e.movementX*.00225;local.pitch=Math.max(-1.15,Math.min(1.15,local.pitch-e.movementY*.0019))});
 document.addEventListener("keydown",e=>{
  keys[e.code]=true;
+ if(e.code==="Space"){
+  e.preventDefault();
+  if(playing&&state?.phase==="active"&&local.onGround&&!local.blocking){
+   local.vy=6.35;
+   local.onGround=false;
+  }
+ }
  if(e.code==="KeyI"&&!inventory.classList.contains("show"))openInventory();
- if(e.code==="Escape"&&inventory.classList.contains("show"))closeInventory();
+ if(e.code==="Escape"&&inventory.classList.contains("show"))closeInventory()
 });
 document.addEventListener("keyup",e=>keys[e.code]=false);
 renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());
 renderer.domElement.addEventListener("mousedown",e=>{
- if(!playing)return;
- if(!locked){renderer.domElement.requestPointerLock?.();return}
- if(e.button===0){socket.emit("attack");attackAnim=.28}
- if(e.button===2){local.blocking=true}
+ if(!playing)return;if(!locked){renderer.domElement.requestPointerLock?.();return}
+ if(e.button===0){socket.emit("attack");attackAnim=me?.weapon==="axe"?.42:.3}
+ if(e.button===2){
+  if(!me?.shieldOwned||!me?.shieldEquipped||me?.weapon==="bow"){showMessage("Equipaggia uno scudo per parare",950);return}
+  local.blocking=true;
+ }
 });
 document.addEventListener("mouseup",e=>{if(e.button===2)local.blocking=false});
 
+function resolveLocalMapCollision(x,z){
+ const m=MAP_INFO[state?.map]||MAP_INFO.keep,rad=.56,limit=m.arena-rad;x=Math.max(-limit,Math.min(limit,x));z=Math.max(-limit,Math.min(limit,z));
+ for(const o of m.obstacles){let dx=x-o.x,dz=z-o.z,d=Math.hypot(dx,dz),min=o.r+rad;if(d<min){if(d<.001){dx=1;dz=0;d=1}x=o.x+dx/d*min;z=o.z+dz/d*min}}
+ return{x,z};
+}
+function resolveLocalPlayerCollision(x,z){
+ if(!other)return resolveLocalMapCollision(x,z);
+ let dx=x-other.x,dz=z-other.z,d=Math.hypot(dx,dz),min=1.18;
+ if(d<min){if(d<.001){dx=1;dz=0;d=1}x=other.x+dx/d*min;z=other.z+dz/d*min}
+ return resolveLocalMapCollision(x,z);
+}
 function updateLocal(dt){
  if(!playing||!me)return;
- if(state?.phase!=="active"){local.blocking=false;return}
- let f=0,r=0;if(keys.KeyW)f++;if(keys.KeyS)f--;if(keys.KeyD)r++;if(keys.KeyA)r--;
- if(f||r){
-  const l=Math.hypot(f,r);f/=l;r/=l;
-  const fx=Math.sin(local.yaw),fz=-Math.cos(local.yaw),rx=Math.cos(local.yaw),rz=Math.sin(local.yaw);
-  let dx=fx*f+rx*r,dz=fz*f+rz*r;const dl=Math.hypot(dx,dz)||1;dx/=dl;dz/=dl;
+ if(state?.phase!=="active"){
+  local.blocking=false;
+  local.y=0; local.vy=0; local.onGround=true;
+  return;
+ }
+
+ // Salto: fisica locale semplice, sincronizzata agli altri giocatori.
+ if(!local.onGround || local.vy>0){
+  local.vy-=16.8*dt;
+  local.y+=local.vy*dt;
+  if(local.y<=0){
+   local.y=0;
+   local.vy=0;
+   local.onGround=true;
+  }
+ }
+
+ let forward=0,side=0;
+ if(keys.KeyW)forward+=1;
+ if(keys.KeyS)forward-=1;
+ if(keys.KeyD)side+=1;
+ if(keys.KeyA)side-=1;
+
+ if(forward||side){
+  const l=Math.hypot(forward,side);forward/=l;side/=l;
+  // W = sempre avanti rispetto a dove guarda la telecamera.
+  const fx=-Math.sin(local.yaw),fz=-Math.cos(local.yaw);
+  const rx=Math.cos(local.yaw),rz=-Math.sin(local.yaw);
+  let dx=fx*forward+rx*side,dz=fz*forward+rz*side;
+  const dl=Math.hypot(dx,dz)||1;dx/=dl;dz/=dl;
   const sprint=(keys.ShiftLeft||keys.ShiftRight)&&me.stamina>8&&!local.blocking;
   const speed=local.blocking?2.0:(sprint?6.7:4.5);
-  local.x=Math.max(-15.4,Math.min(15.4,local.x+dx*speed*dt));
-  local.z=Math.max(-15.4,Math.min(15.4,local.z+dz*speed*dt));
+  const p=resolveLocalPlayerCollision(local.x+dx*speed*dt,local.z+dz*speed*dt);
+  local.x=p.x;local.z=p.z;
  }
 }
 let poseTimer=0;
-function sendPose(dt){
- poseTimer-=dt;if(poseTimer>0)return;poseTimer=.045;
- socket.emit("pose",{x:local.x,z:local.z,yaw:local.yaw,pitch:local.pitch,blocking:local.blocking});
+function sendPose(dt){poseTimer-=dt;if(poseTimer>0)return;poseTimer=.045;socket.emit("pose",{x:local.x,y:local.y,z:local.z,yaw:local.yaw,pitch:local.pitch,blocking:local.blocking})}
+
+function animateWeapons(dt){
+ const groups={sword:swordGroup,spear:spearGroup,axe:axeGroup,bow:bowGroup};const current=groups[me?.weapon||"sword"];
+ for(const [id,grp] of Object.entries(groups)){grp.position.lerp(basePos[id],Math.min(1,dt*16));grp.rotation.x*=Math.pow(.04,dt);grp.rotation.z*=Math.pow(.04,dt)}
+ if(attackAnim>0&&current){
+  attackAnim-=dt;const total=me?.weapon==="axe"?.42:.3,p=1-Math.max(0,attackAnim)/total,s=Math.sin(p*Math.PI);
+  if(me?.weapon==="bow"){current.rotation.x=-s*.14}
+  else if(me?.weapon==="spear"){current.position.z=basePos.spear.z-s*.62;current.rotation.x=-s*.18}
+  else if(me?.weapon==="axe"){current.rotation.z=-s*1.0;current.rotation.x=-s*.45}
+  else{current.rotation.x=-s*.8;current.position.z=basePos.sword.z-s*.34}
+ }
+ shieldGroup.rotation.z+=(local.blocking?.5:0-shieldGroup.rotation.z)*Math.min(1,dt*12);
 }
 function updateVisuals(dt){
- camera.position.set(local.x,1.68,local.z);camera.rotation.y=local.yaw;camera.rotation.x=local.pitch;
- if(me){
-  const moving=keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD;
-  const bob=moving?Math.sin(performance.now()*.012)*.012:0;
-  vm.position.y=bob;
-  const block=local.blocking?1:0;
-  vm.rotation.z+=(block*.28-vm.rotation.z)*Math.min(1,dt*12);
- }
- if(attackAnim>0){
-  attackAnim-=dt;const p=1-Math.max(0,attackAnim)/.28;
-  if(me?.weapon==="bow"){
-    bowGroup.rotation.x=Math.sin(p*Math.PI)*-.13;
-  }else{
-    swordGroup.rotation.x=Math.sin(p*Math.PI)*-.75;
-    swordGroup.position.z=-.87-Math.sin(p*Math.PI)*.42;
-  }
- }else{
-  swordGroup.rotation.x*=.82;swordGroup.position.z+=(-.87-swordGroup.position.z)*.18;bowGroup.rotation.x*=.82;
- }
+ camera.position.set(local.x,1.68+local.y,local.z);camera.rotation.y=local.yaw;camera.rotation.x=local.pitch;
+ const moving=keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD;vm.position.y=(moving&&local.onGround)?Math.sin(performance.now()*.012)*.012:0;
+ animateWeapons(dt);setEquipment();
+
  if(other){
-  opponent.visible=true;
-  remotePos.lerp(new THREE.Vector3(other.x,0,other.z),Math.min(1,dt*10));
-  opponent.position.copy(remotePos);remoteYaw+=(other.yaw-remoteYaw)*Math.min(1,dt*10);opponent.rotation.y=remoteYaw;
+  opponent.visible=true;remotePos.lerp(new THREE.Vector3(other.x,other.y||0,other.z),Math.min(1,dt*12));opponent.position.copy(remotePos);
+  let dy=other.yaw-remoteYaw;while(dy>Math.PI)dy-=Math.PI*2;while(dy<-Math.PI)dy+=Math.PI*2;remoteYaw+=dy*Math.min(1,dt*12);opponent.rotation.y=remoteYaw;
  }else opponent.visible=false;
 
- const currentIds=new Set();
- if(state)for(const a of state.arrows){
-  currentIds.add(a.id);
-  let m=arrowMeshes.get(a.id);
-  if(!m){
-   m=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.9,7),new THREE.MeshStandardMaterial({color:0xc8ad75,roughness:.8}));
-   m.rotation.x=Math.PI/2;m.castShadow=true;scene.add(m);arrowMeshes.set(a.id,m);
-  }
+ if(opponentHitFlash>0){opponentHitFlash-=dt;opponent.traverse(o=>{if(o.material?.emissive)o.material.emissive.setHex(0x6b1717)})}
+ else opponent.traverse(o=>{if(o.material?.emissive)o.material.emissive.setHex(0x000000)});
+
+ const ids=new Set();if(state)for(const a of state.arrows){
+  ids.add(a.id);let m=arrowMeshes.get(a.id);
+  if(!m){m=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.9,7),new THREE.MeshStandardMaterial({color:0xc8ad75,roughness:.8}));m.rotation.x=Math.PI/2;m.castShadow=true;scene.add(m);arrowMeshes.set(a.id,m)}
   m.position.set(a.x,a.y,a.z);m.rotation.y=a.yaw;m.rotation.x=Math.PI/2-a.pitch;
  }
- for(const [id,m] of arrowMeshes)if(!currentIds.has(id)){scene.remove(m);arrowMeshes.delete(id)}
+ for(const [id,m] of arrowMeshes)if(!ids.has(id)){scene.remove(m);arrowMeshes.delete(id)}
  if(hitFlash>0){hitFlash-=dt;if(hitFlash<=0)ui.damage.style.opacity="0"}
 }
-function loop(t){
- const dt=Math.min(.033,(t-last)/1000||0);last=t;
- updateLocal(dt);sendPose(dt);updateVisuals(dt);renderer.render(scene,camera);requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
+function loop(t){const dt=Math.min(.033,(t-last)/1000||0);last=t;updateLocal(dt);sendPose(dt);updateVisuals(dt);renderer.render(scene,camera);requestAnimationFrame(loop)}
+buildArena("keep");requestAnimationFrame(loop);
 </script>
 </body>
 </html>
