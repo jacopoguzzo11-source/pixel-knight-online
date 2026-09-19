@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pixel Knight Online Duel v6</title>
+<title>Pixel Knight Online Duel v7</title>
 <style>
 :root{--panel:#141618;--line:#4f4b40;--gold:#d0ad5b;--red:#ad4542;--green:#63885c;--text:#eee9dc;--muted:#aaa495}
 *{box-sizing:border-box}
@@ -54,6 +54,33 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
 .statusLine{font-size:12px;color:#d5cbaF;margin:8px 0}
 .botBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 @media(max-width:650px){.grid2,.mapGrid,.botBtns{grid-template-columns:1fr}.bars{width:48vw}#help{display:none}}
+
+#settingsBtn{position:absolute;right:12px;top:82px;pointer-events:auto;z-index:25;width:46px;height:46px;padding:0;font-size:22px}
+.controlModeGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.controlModeBtn{min-height:74px}
+.controlModeBtn.selected{border-color:#efc969;background:#4a3c1e;box-shadow:0 0 0 1px #efc969 inset}
+#mobileControls{position:absolute;inset:0;display:none;pointer-events:none;z-index:20;touch-action:none}
+#mobileControls.show{display:block}
+#moveZone{position:absolute;left:14px;bottom:18px;width:150px;height:150px;pointer-events:auto;touch-action:none}
+#joyBase{position:absolute;left:15px;top:15px;width:120px;height:120px;border-radius:50%;border:2px solid rgba(255,255,255,.30);background:rgba(10,10,10,.28);backdrop-filter:blur(3px)}
+#joyStick{position:absolute;left:45px;top:45px;width:60px;height:60px;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:rgba(220,220,220,.22);transform:translate(0,0)}
+#lookZone{position:absolute;right:0;top:20%;width:56%;height:58%;pointer-events:auto;touch-action:none}
+.mobileAction{position:absolute;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:50%;width:62px;height:62px;padding:0;background:rgba(20,22,24,.58);border:2px solid rgba(255,255,255,.45);font-size:12px;font-weight:900;backdrop-filter:blur(4px)}
+#attackBtn{right:22px;bottom:40px;width:82px;height:82px;font-size:14px}
+#blockBtn{right:112px;bottom:30px}
+#jumpBtn{right:30px;bottom:134px}
+#sprintBtn{right:112px;bottom:108px}
+#inventoryBtnMobile{right:194px;bottom:38px;width:54px;height:54px}
+#mobileHint{position:absolute;right:16px;top:16px;background:rgba(0,0,0,.40);padding:5px 8px;border-radius:6px;font-size:10px;color:#ddd;pointer-events:none}
+@media(max-width:700px){
+ #settingsBtn{top:74px;right:8px}
+ #help{display:none}
+ #top{top:7px;left:7px;right:7px}
+ .card{padding:7px 8px}
+ .bars{width:48vw}
+ #score{font-size:16px;top:10px}
+}
+
 </style>
 </head>
 <body>
@@ -72,11 +99,42 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
   <div id="bottom"><div class="card" id="weaponCard"><div class="small">EQUIPAGGIAMENTO</div><b id="weaponText">Spada</b><div class="ammo" id="ammoText"></div></div></div>
   <div id="help" class="card">W avanti · S indietro · A sinistra · D destra<br>SPAZIO salto · SHIFT corsa · Mouse guarda · CLICK SX attacco (con arco: tieni e rilascia)<br>CLICK DX scudo · I inventario · ESC libera mouse</div>
   <div id="damage"></div>
+  <button id="settingsBtn" class="card" type="button" aria-label="Impostazioni">⚙</button>
+  <div id="mobileControls" aria-label="Comandi mobile">
+    <div id="moveZone" aria-label="Joystick movimento">
+      <div id="joyBase"></div><div id="joyStick"></div>
+    </div>
+    <div id="lookZone" aria-label="Trascina per guardare"></div>
+    <button id="attackBtn" class="mobileAction" type="button">ATTACCA</button>
+    <button id="blockBtn" class="mobileAction" type="button">PARA</button>
+    <button id="jumpBtn" class="mobileAction" type="button">SALTA</button>
+    <button id="sprintBtn" class="mobileAction" type="button">CORRI</button>
+    <button id="inventoryBtnMobile" class="mobileAction" type="button">🎒</button>
+    <div id="mobileHint">Trascina a destra per mirare</div>
+  </div>
+</div>
+
+
+<div class="overlay" id="settings">
+ <div class="modal" style="max-width:590px">
+  <h2>⚙ Impostazioni comandi</h2>
+  <p>Scegli come vuoi controllare il personaggio. Puoi cambiare modalità in qualsiasi momento.</p>
+  <div class="controlModeGrid">
+    <button id="pcModeBtn" class="controlModeBtn" type="button">
+      🖥️ PC<br><span class="small">WASD + mouse + tastiera</span>
+    </button>
+    <button id="mobileModeBtn" class="controlModeBtn" type="button">
+      📱 Mobile<br><span class="small">Joystick + comandi touch</span>
+    </button>
+  </div>
+  <p class="small" id="controlModeText"></p>
+  <div style="margin-top:12px"><button id="closeSettings" type="button">Chiudi</button></div>
+ </div>
 </div>
 
 <div class="overlay show" id="menu">
  <div class="modal">
-  <h1>⚔ Pixel Knight Online Duel v6</h1>
+  <h1>⚔ Pixel Knight Online Duel v7</h1>
   <p>Puoi giocare contro un amico, allenarti contro un bot oppure cercare automaticamente un avversario online.</p>
   <div class="grid2">
    <div class="lobbybox">
@@ -168,7 +226,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.m
 
 const socket=io();
 const game=document.getElementById("game");
-const menu=document.getElementById("menu"),lobby=document.getElementById("lobby"),inventory=document.getElementById("inventory"),matchmaking=document.getElementById("matchmaking");
+const menu=document.getElementById("menu"),lobby=document.getElementById("lobby"),inventory=document.getElementById("inventory"),matchmaking=document.getElementById("matchmaking"),settings=document.getElementById("settings");
 const ui={
  meName:document.getElementById("meName"),roomLabel:document.getElementById("roomLabel"),mapLabel:document.getElementById("mapLabel"),
  score:document.getElementById("score"),hpFill:document.getElementById("hpFill"),hpText:document.getElementById("hpText"),
@@ -201,6 +259,13 @@ let myId=null,roomCode="",state=null,me=null,other=null,playing=false,locked=fal
 let local={x:-9,y:0,z:0,vy:0,onGround:true,yaw:-Math.PI/2,pitch:0,blocking:false};
 let keys={},last=performance.now(),attackAnim=0,hitFlash=0,currentMap="";
 let lobbySignature="";
+let controlMode=localStorage.getItem("pixelKnightControlMode")||((navigator.maxTouchPoints||0)>0?"mobile":"pc");
+let mobileMove={forward:0,side:0};
+let mobileSprint=false;
+let mobileLookPointer=null,mobileLookLast={x:0,y:0};
+let joystickPointer=null;
+let mobileBlockPointer=null;
+let mobileAttackPointer=null;
 const arrowMeshes=new Map();
 const remoteAvatars=new Map();
 const remoteHitFlashes=new Map();
@@ -464,6 +529,37 @@ function setEquipment(){
  if(me?.skin)gloveMat.color.setHex((SKINS[me.skin]||SKINS.crimson).color);
 }
 
+
+function applyControlMode(){
+ const mobile=controlMode==="mobile";
+ document.getElementById("mobileControls").classList.toggle("show",mobile&&playing);
+ document.getElementById("pcModeBtn").classList.toggle("selected",!mobile);
+ document.getElementById("mobileModeBtn").classList.toggle("selected",mobile);
+ document.getElementById("controlModeText").textContent=mobile
+  ?"Modalità Mobile attiva: joystick a sinistra, trascina a destra per mirare."
+  :"Modalità PC attiva: WASD, mouse, click e tastiera.";
+ document.getElementById("help").style.display=mobile?"none":"";
+ if(mobile&&document.pointerLockElement===renderer.domElement)document.exitPointerLock?.();
+}
+function setControlMode(mode){
+ controlMode=mode==="mobile"?"mobile":"pc";
+ localStorage.setItem("pixelKnightControlMode",controlMode);
+ mobileMove.forward=0;mobileMove.side=0;mobileSprint=false;local.blocking=false;
+ applyControlMode();
+}
+function openSettings(){
+ if(document.pointerLockElement===renderer.domElement)document.exitPointerLock?.();
+ settings.classList.add("show");
+}
+function closeSettings(){
+ settings.classList.remove("show");
+ if(playing&&controlMode==="pc")renderer.domElement.requestPointerLock?.();
+ applyControlMode();
+}
+function setMobileControlsVisible(){
+ document.getElementById("mobileControls").classList.toggle("show",controlMode==="mobile"&&playing&&!settings.classList.contains("show")&&!inventory.classList.contains("show"));
+}
+
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}addEventListener("resize",resize);
 function meFromState(){return state?.players?.find(p=>p.id===myId)||null}
 function othersFromState(){return state?.players?.filter(p=>p.id!==myId)||[]}
@@ -598,9 +694,17 @@ function showDamageNumber(amount,blocked=false,heavy=false,targetId=null){
  ui.cross.classList.add("hit");setTimeout(()=>ui.cross.classList.remove("hit"),110);
  if(targetId)remoteHitFlashes.set(targetId,.18);
 }
-function enterArena(){lobby.classList.remove("show");playing=true;renderer.domElement.requestPointerLock?.()}
-function openInventory(){if(!playing)return;document.exitPointerLock?.();refreshInventory();inventory.classList.add("show")}
-function closeInventory(){inventory.classList.remove("show");renderer.domElement.requestPointerLock?.()}
+function enterArena(){
+ lobby.classList.remove("show");playing=true;applyControlMode();setMobileControlsVisible();
+ if(controlMode==="pc")renderer.domElement.requestPointerLock?.();
+}
+function openInventory(){
+ if(!playing)return;document.exitPointerLock?.();refreshInventory();inventory.classList.add("show");setMobileControlsVisible();
+}
+function closeInventory(){
+ inventory.classList.remove("show");setMobileControlsVisible();
+ if(controlMode==="pc")renderer.domElement.requestPointerLock?.();
+}
 
 socket.on("joined",d=>{myId=d.id;roomCode=d.code;lobbySignature="";menu.classList.remove("show");matchmaking.classList.remove("show");lobby.classList.add("show")});
 socket.on("joinError",e=>document.getElementById("menuError").textContent=e);
@@ -626,7 +730,7 @@ socket.on("state",s=>{
  if(sig!==lobbySignature){lobbySignature=sig;refreshLobby()}
  if(me&&!locked&&playing&&state.phase!=="active"){local.x=me.x;local.y=me.y||0;local.z=me.z;local.yaw=me.yaw;local.pitch=me.pitch}
 });
-socket.on("roundStart",()=>{showMessage("DUELLO!",1200);me=meFromState();if(me){local.x=me.x;local.y=0;local.z=me.z;local.vy=0;local.onGround=true;local.yaw=me.yaw;local.pitch=0}enterArena()});
+socket.on("roundStart",()=>{showMessage("DUELLO!",1200);me=meFromState();if(me){local.x=me.x;local.y=0;local.z=me.z;local.vy=0;local.onGround=true;local.yaw=me.yaw;local.pitch=0}enterArena();setMobileControlsVisible()});
 function mySideWon(d){
  const nowMe=meFromState();
  if(d.winnerTeam!==null&&d.winnerTeam!==undefined)return nowMe?.team===d.winnerTeam;
@@ -634,7 +738,7 @@ function mySideWon(d){
 }
 socket.on("roundEnd",d=>showMessage(mySideWon(d)?"ROUND VINTO":"ROUND FINITO",2600));
 socket.on("matchEnd",d=>{showMessage(mySideWon(d)?"HAI VINTO IL DUELLO":"DUELLO FINITO",5000);setTimeout(()=>{document.exitPointerLock?.();playing=false;lobby.classList.add("show")},5600)});
-socket.on("opponentLeft",()=>{showMessage("Un giocatore si è disconnesso",3000);lobby.classList.add("show");playing=false});
+socket.on("opponentLeft",()=>{showMessage("Un giocatore si è disconnesso",3000);lobby.classList.add("show");playing=false;setMobileControlsVisible()});
 socket.on("noAmmo",()=>showMessage("Nessuna freccia",900));
 socket.on("combatEvent",e=>{
  if(e.target===myId){if(e.type==="hit"){hitFlash=.22;ui.damage.style.opacity=".76"}if(e.type==="block")showMessage("PARATA",500)}
@@ -650,17 +754,18 @@ document.getElementById("readyBtn").addEventListener("click",()=>socket.emit("re
 document.getElementById("closeInv").addEventListener("click",closeInventory);
 
 document.addEventListener("pointerlockchange",()=>{locked=document.pointerLockElement===renderer.domElement});
-document.addEventListener("mousemove",e=>{if(!locked||!playing)return;local.yaw-=e.movementX*.00225;local.pitch=Math.max(-1.15,Math.min(1.15,local.pitch-e.movementY*.0019))});
+document.addEventListener("mousemove",e=>{if(controlMode!=="pc"||!locked||!playing)return;local.yaw-=e.movementX*.00225;local.pitch=Math.max(-1.15,Math.min(1.15,local.pitch-e.movementY*.0019))});
 document.addEventListener("keydown",e=>{
+ if(controlMode!=="pc")return;
  keys[e.code]=true;
  if(e.code==="Space"){e.preventDefault();if(playing&&state?.phase==="active"&&local.onGround&&!local.blocking){local.vy=6.35;local.onGround=false}}
  if(e.code==="KeyI"&&!inventory.classList.contains("show"))openInventory();
  if(e.code==="Escape"&&inventory.classList.contains("show"))closeInventory()
 });
-document.addEventListener("keyup",e=>keys[e.code]=false);
+document.addEventListener("keyup",e=>{if(controlMode==="pc")keys[e.code]=false});
 renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());
 renderer.domElement.addEventListener("mousedown",e=>{
- if(!playing)return;
+ if(controlMode!=="pc"||!playing)return;
  if(!locked){renderer.domElement.requestPointerLock?.();return}
  if(e.button===0){
   if(me?.weapon==="bow"){
@@ -677,6 +782,7 @@ renderer.domElement.addEventListener("mousedown",e=>{
  }
 });
 document.addEventListener("mouseup",e=>{
+ if(controlMode!=="pc")return;
  if(e.button===2)local.blocking=false;
  if(e.button===0&&bowDrawing){
   bowDrawing=false;
@@ -684,6 +790,87 @@ document.addEventListener("mouseup",e=>{
   socket.emit("attack");
  }
 });
+
+
+const moveZone=document.getElementById("moveZone"),joyStick=document.getElementById("joyStick"),lookZone=document.getElementById("lookZone");
+function resetJoystick(){
+ mobileMove.forward=0;mobileMove.side=0;joystickPointer=null;joyStick.style.transform="translate(0px,0px)";
+}
+function updateJoystick(e){
+ const r=moveZone.getBoundingClientRect();
+ const cx=r.left+r.width/2,cy=r.top+r.height/2;
+ let dx=e.clientX-cx,dy=e.clientY-cy;
+ const max=43,dist=Math.hypot(dx,dy);
+ if(dist>max){dx=dx/dist*max;dy=dy/dist*max}
+ joyStick.style.transform=`translate(${dx}px,${dy}px)`;
+ mobileMove.side=Math.max(-1,Math.min(1,dx/max));
+ mobileMove.forward=Math.max(-1,Math.min(1,-dy/max));
+}
+moveZone.addEventListener("pointerdown",e=>{
+ if(controlMode!=="mobile")return;e.preventDefault();joystickPointer=e.pointerId;moveZone.setPointerCapture?.(e.pointerId);updateJoystick(e);
+});
+moveZone.addEventListener("pointermove",e=>{if(e.pointerId===joystickPointer){e.preventDefault();updateJoystick(e)}});
+moveZone.addEventListener("pointerup",e=>{if(e.pointerId===joystickPointer)resetJoystick()});
+moveZone.addEventListener("pointercancel",e=>{if(e.pointerId===joystickPointer)resetJoystick()});
+
+lookZone.addEventListener("pointerdown",e=>{
+ if(controlMode!=="mobile"||!playing)return;e.preventDefault();
+ mobileLookPointer=e.pointerId;mobileLookLast={x:e.clientX,y:e.clientY};lookZone.setPointerCapture?.(e.pointerId);
+});
+lookZone.addEventListener("pointermove",e=>{
+ if(e.pointerId!==mobileLookPointer)return;e.preventDefault();
+ const dx=e.clientX-mobileLookLast.x,dy=e.clientY-mobileLookLast.y;
+ mobileLookLast={x:e.clientX,y:e.clientY};
+ local.yaw-=dx*.0041;
+ local.pitch=Math.max(-1.15,Math.min(1.15,local.pitch-dy*.0036));
+});
+lookZone.addEventListener("pointerup",e=>{if(e.pointerId===mobileLookPointer)mobileLookPointer=null});
+lookZone.addEventListener("pointercancel",e=>{if(e.pointerId===mobileLookPointer)mobileLookPointer=null});
+
+const attackBtn=document.getElementById("attackBtn");
+attackBtn.addEventListener("pointerdown",e=>{
+ if(controlMode!=="mobile"||!playing)return;e.preventDefault();mobileAttackPointer=e.pointerId;attackBtn.setPointerCapture?.(e.pointerId);
+ if(me?.weapon==="bow"){
+  if((me?.ammo||0)<=0){showMessage("Nessuna freccia",900);return}
+  bowDrawing=true;
+ }else{
+  socket.emit("attack");
+  attackAnim=me?.weapon==="axe"?.58:(me?.weapon==="spear"?.36:.44);
+ }
+});
+function releaseMobileAttack(e){
+ if(e.pointerId!==mobileAttackPointer)return;
+ mobileAttackPointer=null;
+ if(bowDrawing){bowDrawing=false;bowRelease=.18;socket.emit("attack")}
+}
+attackBtn.addEventListener("pointerup",releaseMobileAttack);
+attackBtn.addEventListener("pointercancel",releaseMobileAttack);
+
+const blockBtn=document.getElementById("blockBtn");
+blockBtn.addEventListener("pointerdown",e=>{
+ if(controlMode!=="mobile"||!playing)return;e.preventDefault();mobileBlockPointer=e.pointerId;blockBtn.setPointerCapture?.(e.pointerId);
+ if(!me?.shieldOwned||!me?.shieldEquipped||me?.weapon==="bow"){showMessage("Equipaggia uno scudo per parare",950);return}
+ local.blocking=true;
+});
+function releaseMobileBlock(e){if(e.pointerId===mobileBlockPointer){mobileBlockPointer=null;local.blocking=false}}
+blockBtn.addEventListener("pointerup",releaseMobileBlock);
+blockBtn.addEventListener("pointercancel",releaseMobileBlock);
+
+document.getElementById("jumpBtn").addEventListener("pointerdown",e=>{
+ if(controlMode!=="mobile"||!playing)return;e.preventDefault();
+ if(state?.phase==="active"&&local.onGround&&!local.blocking){local.vy=6.35;local.onGround=false}
+});
+const sprintBtn=document.getElementById("sprintBtn");
+sprintBtn.addEventListener("pointerdown",e=>{if(controlMode==="mobile"){e.preventDefault();mobileSprint=true}});
+sprintBtn.addEventListener("pointerup",()=>mobileSprint=false);
+sprintBtn.addEventListener("pointercancel",()=>mobileSprint=false);
+document.getElementById("inventoryBtnMobile").addEventListener("pointerdown",e=>{if(controlMode==="mobile"){e.preventDefault();openInventory()}});
+
+document.getElementById("settingsBtn").addEventListener("click",openSettings);
+document.getElementById("pcModeBtn").addEventListener("click",()=>setControlMode("pc"));
+document.getElementById("mobileModeBtn").addEventListener("click",()=>setControlMode("mobile"));
+document.getElementById("closeSettings").addEventListener("click",closeSettings);
+applyControlMode();
 
 function resolveLocalMapCollision(x,z){
  const m=MAP_INFO[state?.map]||MAP_INFO.keep,rad=.56,limit=m.arena-rad;x=Math.max(-limit,Math.min(limit,x));z=Math.max(-limit,Math.min(limit,z));
@@ -705,12 +892,18 @@ function updateLocal(dt){
  if(me.hp<=0){local.blocking=false;return}
  if(state?.phase!=="active"){local.blocking=false;local.y=0;local.vy=0;local.onGround=true;return}
  if(!local.onGround||local.vy>0){local.vy-=16.8*dt;local.y+=local.vy*dt;if(local.y<=0){local.y=0;local.vy=0;local.onGround=true}}
- let forward=0,side=0;if(keys.KeyW)forward+=1;if(keys.KeyS)forward-=1;if(keys.KeyD)side+=1;if(keys.KeyA)side-=1;
+ let forward=0,side=0;
+ if(controlMode==="mobile"){
+  forward=mobileMove.forward;side=mobileMove.side;
+ }else{
+  if(keys.KeyW)forward+=1;if(keys.KeyS)forward-=1;if(keys.KeyD)side+=1;if(keys.KeyA)side-=1;
+ }
  if(forward||side){
-  const l=Math.hypot(forward,side);forward/=l;side/=l;
+  const l=Math.hypot(forward,side);if(l>1){forward/=l;side/=l}
   const fx=-Math.sin(local.yaw),fz=-Math.cos(local.yaw),rx=Math.cos(local.yaw),rz=-Math.sin(local.yaw);
   let dx=fx*forward+rx*side,dz=fz*forward+rz*side;const dl=Math.hypot(dx,dz)||1;dx/=dl;dz/=dl;
-  const sprint=(keys.ShiftLeft||keys.ShiftRight)&&me.stamina>8&&!local.blocking;const speed=local.blocking?2.0:(sprint?6.7:4.5);
+  const sprint=(controlMode==="mobile"?mobileSprint:(keys.ShiftLeft||keys.ShiftRight))&&me.stamina>8&&!local.blocking;
+  const speed=local.blocking?2.0:(sprint?6.7:4.5);
   const p=resolveLocalPlayerCollision(local.x+dx*speed*dt,local.z+dz*speed*dt);local.x=p.x;local.z=p.z;
  }
 }
@@ -821,7 +1014,7 @@ function animateWeapons(dt){
 }
 function updateVisuals(dt){
  camera.position.set(local.x,1.68+local.y,local.z);camera.rotation.y=local.yaw;camera.rotation.x=local.pitch;
- const moving=keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD;
+ const moving=controlMode==="mobile"?(Math.abs(mobileMove.forward)+Math.abs(mobileMove.side)>.08):(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD);
  vm.position.y=(moving&&local.onGround)?Math.sin(performance.now()*.012)*.012:0;
  animateWeapons(dt);setEquipment();
 
