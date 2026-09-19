@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pixel Knight Online Duel v10</title>
+<title>Pixel Knight Online Duel v11</title>
 <style>
 :root{--panel:#141618;--line:#4f4b40;--gold:#d0ad5b;--red:#ad4542;--green:#63885c;--text:#eee9dc;--muted:#aaa495}
 *{box-sizing:border-box}
@@ -81,6 +81,11 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
  #score{font-size:16px;top:10px}
 }
 
+
+#readyBar{position:sticky;bottom:-20px;background:#121416;border-top:1px solid #4b483f;padding:10px 0 18px;z-index:3}
+#readyBtn{min-width:170px;min-height:48px}
+#crazyShop button{min-height:44px}
+.crazyOk{color:#8fd58b}.crazyErr{color:#e58d82}
 </style>
 </head>
 <body>
@@ -134,7 +139,7 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
 
 <div class="overlay show" id="menu">
  <div class="modal">
-  <h1>⚔ Pixel Knight Online Duel v10</h1>
+  <h1>⚔ Pixel Knight Online Duel v11</h1>
   <p>Puoi giocare contro un amico, allenarti contro un bot oppure cercare automaticamente un avversario online.</p>
   <div class="grid2">
    <div class="lobbybox">
@@ -207,8 +212,10 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
   <h3 style="margin-top:16px">2. Scegli la skin</h3>
   <div class="choiceGrid" id="skinGrid"></div>
 
-  <h3 style="margin-top:16px">3. Armeria</h3>
-  <div class="store" id="store"></div>
+  <div id="standardArmoryWrap">
+    <h3 style="margin-top:16px">3. Armeria</h3>
+    <div class="store" id="store"></div>
+  </div>
 
   <div id="crazyShopWrap" style="display:none">
     <h3 style="margin-top:16px">Crazy Shop</h3>
@@ -220,7 +227,10 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
   <div class="choiceGrid" id="shieldGrid"></div>
 
   <div class="statusLine" id="selectionStatus"></div>
-  <div style="margin-top:12px"><button class="primary" id="readyBtn">✓ Pronto</button></div>
+  <div id="readyBar" style="margin-top:12px">
+    <div class="statusLine" id="readyStatus"></div>
+    <button class="primary" id="readyBtn" type="button">✓ Pronto</button>
+  </div>
  </div>
 </div>
 
@@ -593,15 +603,14 @@ bowGroup.add(bowArrow);
   guitarGroup.add(new THREE.Line(sg,new THREE.LineBasicMaterial({color:0xd7d1c5})));
  }
 }
-function buildLongNails(){
- nailsGroup.clear();
- const nailMat=new THREE.MeshStandardMaterial({color:0xf4e7df,roughness:.34,metalness:.02});
- for(let i=0;i<5;i++){
-  const nail=new THREE.Mesh(new THREE.ConeGeometry(.018,.34,7),nailMat);
-  nail.rotation.x=-Math.PI/2;nail.position.set(.22+i*.035,-.18,-1.10-i*.012);nailsGroup.add(nail);
- }
+const nailMat=new THREE.MeshStandardMaterial({color:0xf4e7df,roughness:.36,metalness:.01});
+for(let i=0;i<5;i++){
+ const nail=new THREE.Mesh(new THREE.BoxGeometry(.024,.018,.24+i*.025),nailMat);
+ nail.position.set(.19+i*.035,-.18,-1.08-(i*.008));
+ nail.rotation.x=-.10;
+ nailsGroup.add(nail);
 }
-buildLongNails();
+nailsGroup.visible=false;
 
 // SCUDO: più piccolo e piatto verso l'avversario, non di taglio.
 {
@@ -753,7 +762,7 @@ function lobbySig(s){
  if(!s)return"";
  return JSON.stringify({
   phase:s.phase,map:s.map,mode:s.mode,privateFormat:s.privateFormat,maxPlayers:s.maxPlayers,botDifficulty:s.botDifficulty,hostId:s.hostId,
-  players:s.players.map(p=>({id:p.id,ready:p.ready,weapon:p.weapon,coins:p.coins,ammo:p.ammo,owned:p.owned,shieldOwned:p.shieldOwned,shieldEquipped:p.shieldEquipped,skin:p.skin,score:p.score,team:p.team,alive:p.alive,name:p.name}))
+  players:s.players.map(p=>({id:p.id,ready:p.ready,weapon:p.weapon,coins:p.coins,ammo:p.ammo,owned:p.owned,longNails:p.longNails,shieldOwned:p.shieldOwned,shieldEquipped:p.shieldEquipped,skin:p.skin,score:p.score,team:p.team,name:p.name}))
  });
 }
 function flashSelection(text){const e=document.getElementById("selectionStatus");e.textContent="✓ "+text;clearTimeout(flashSelection.t);flashSelection.t=setTimeout(()=>{e.textContent=""},1200)}
@@ -808,19 +817,34 @@ function renderShieldSelector(){
 }
 function renderCrazyShop(){
  const wrap=document.getElementById("crazyShopWrap"),c=document.getElementById("crazyShop");
- const isCrazy=state?.mode==="crazy";wrap.style.display=isCrazy?"block":"none";
+ const standard=document.getElementById("standardArmoryWrap");
+ const isCrazy=state?.mode==="crazy";
+ wrap.style.display=isCrazy?"block":"none";
+ standard.style.display=isCrazy?"none":"block";
  if(!isCrazy||!me){c.innerHTML="";return}
  c.innerHTML="";
  const items=[
-  {id:"longNails",name:"💅 Unghie lunghissime",cost:60,desc:"Servono per suonare la Chitarra Sonora. Sono volutamente esagerate.",owned:!!me.longNails,blocked:false},
-  {id:"guitar",name:"🎸 Chitarra Sonora",cost:110,desc:"Spara onde sonore. Prima devi comprare le unghie lunghissime.",owned:!!me.owned?.guitar,blocked:!me.longNails}
+  {id:"longNails",name:"💅 Unghie lunghissime",cost:60,desc:"Necessarie per suonare la Chitarra Sonora.",owned:!!me.longNails,blocked:false},
+  {id:"guitar",name:"🎸 Chitarra Sonora",cost:110,desc:"Spara onde sonore. Si sblocca dopo le unghie.",owned:!!me.owned?.guitar,blocked:!me.longNails}
  ];
  for(const it of items){
-  const d=document.createElement("div");d.className="item";d.innerHTML=`<strong>${it.name}</strong><p class="small">${it.desc}</p><span>🪙 ${it.cost}</span><br>`;
+  const d=document.createElement("div");d.className="item";
+  d.innerHTML=`<strong>${it.name}</strong><p class="small">${it.desc}</p><span>🪙 ${it.cost}</span><br>`;
   const b=document.createElement("button");b.type="button";b.style.marginTop="7px";
-  if(it.owned){b.textContent="Già comprato";b.disabled=true}
-  else if(it.blocked){b.textContent="Prima compra le unghie";b.disabled=true}
-  else{b.textContent="Compra";b.addEventListener("click",()=>socket.emit("purchaseCrazy",it.id))}
+  if(it.owned){b.textContent="✓ Già comprato";b.disabled=true}
+  else if(it.blocked){b.textContent="🔒 Prima compra le unghie";b.disabled=true}
+  else{
+   b.textContent="Compra";
+   b.addEventListener("click",()=>{
+    if(b.disabled)return;
+    b.disabled=true;b.textContent="Acquisto...";
+    socket.timeout(2500).emit("purchaseCrazy",it.id,(err,res)=>{
+      if(err){b.disabled=false;b.textContent="Riprova";flashSelection("Errore di connessione");return}
+      flashSelection(res?.message||"Acquisto aggiornato");
+      if(!res?.ok){b.disabled=false;b.textContent="Compra"}
+    });
+   });
+  }
   d.appendChild(b);c.appendChild(d);
  }
 }
@@ -846,7 +870,12 @@ function refreshLobby(){
   ps.appendChild(d);
  });
  renderMapButtons();renderSkins();renderStore();renderCrazyShop();renderWeaponSelector();renderShieldSelector();refreshInventory();
- const rb=document.getElementById("readyBtn");rb.textContent=me.ready?"Annulla pronto":"✓ Pronto";
+ const rb=document.getElementById("readyBtn");
+ rb.disabled=state.phase!=="lobby";
+ rb.textContent=me.ready?"✓ Sei pronto · clicca per annullare":"✓ Pronto";
+ const readyCount=state.players.filter(p=>p.ready).length;
+ const needed=state.maxPlayers||state.players.length;
+ document.getElementById("readyStatus").textContent=`Pronti: ${readyCount}/${needed}${state.mode==="crazy"?" · Crazy Weapon parte quando tutti e 3 sono pronti":""}`;
 }
 function refreshInventory(){
  const c=document.getElementById("invContent");if(!me)return;c.innerHTML="";
@@ -920,7 +949,7 @@ function mySideWon(d){
  return d.winner===myId;
 }
 socket.on("roundEnd",d=>showMessage(mySideWon(d)?"ROUND VINTO":"ROUND FINITO",2600));
-socket.on("matchEnd",d=>{showMessage(mySideWon(d)?"HAI VINTO IL DUELLO":"DUELLO FINITO",5000);setTimeout(()=>{document.exitPointerLock?.();playing=false;lobby.classList.add("show")},5600)});
+socket.on("matchEnd",d=>{showMessage(mySideWon(d)?"HAI VINTO IL DUELLO":"DUELLO FINITO",5000);setTimeout(()=>{document.exitPointerLock?.();playing=false;lobby.classList.add("show");setMobileControlsVisible()},5600)});
 socket.on("opponentLeft",()=>{showMessage("Un giocatore si è disconnesso",3000);lobby.classList.add("show");playing=false;setMobileControlsVisible()});
 socket.on("noAmmo",()=>showMessage("Nessuna freccia",900));
 socket.on("combatEvent",e=>{
@@ -934,7 +963,16 @@ document.querySelectorAll("[data-bot]").forEach(b=>b.addEventListener("click",()
 document.getElementById("publicBtn").addEventListener("click",()=>socket.emit("joinPublicQueue",{name:document.getElementById("publicName").value}));
 document.getElementById("crazyBtn").addEventListener("click",()=>socket.emit("joinCrazyQueue",{name:document.getElementById("crazyName").value}));
 document.getElementById("cancelMatch").addEventListener("click",()=>{socket.emit("cancelPublicQueue");socket.emit("cancelCrazyQueue")});
-document.getElementById("readyBtn").addEventListener("click",()=>socket.emit("ready"));
+document.getElementById("readyBtn").addEventListener("click",()=>{
+ const b=document.getElementById("readyBtn");
+ if(b.disabled)return;
+ b.disabled=true;
+ socket.timeout(2500).emit("ready",{},(err,res)=>{
+  if(err){b.disabled=false;flashSelection("Errore: il server non ha risposto");return}
+  if(!res?.ok){b.disabled=false;flashSelection(res?.message||"Impossibile cambiare Pronto");return}
+  flashSelection(res.ready?`Sei pronto · ${res.readyCount}/${res.needed}`:`Pronto annullato · ${res.readyCount}/${res.needed}`);
+ });
+});
 document.getElementById("closeInv").addEventListener("click",closeInventory);
 
 document.addEventListener("pointerlockchange",()=>{locked=document.pointerLockElement===renderer.domElement});
@@ -1292,6 +1330,12 @@ const ids=new Set();
  for(const [id,m] of arrowMeshes)if(!ids.has(id)){scene.remove(m);arrowMeshes.delete(id)}
  if(hitFlash>0){hitFlash-=dt;if(hitFlash<=0)ui.damage.style.opacity="0"}
 }
+window.addEventListener("error",e=>{
+ console.error("Pixel Knight client error:",e.error||e.message);
+ const s=document.getElementById("selectionStatus");
+ if(s)s.textContent="Errore client rilevato: ricarica la pagina se un comando smette di rispondere.";
+});
+
 function loop(t){const dt=Math.min(.033,(t-last)/1000||0);last=t;updateLocal(dt);sendPose(dt);updateVisuals(dt);renderer.render(scene,camera);requestAnimationFrame(loop)}
 buildArena("keep");requestAnimationFrame(loop);
 </script>
