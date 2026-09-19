@@ -1,0 +1,9 @@
+PIXEL KNIGHT v4 - AGGIORNAMENTO
+NON caricare questo ZIP su GitHub.
+
+1) Estrai lo ZIP.
+2) Nel repository GitHub sostituisci server.js con il nuovo server.js.
+3) Apri la cartella public del repository e sostituisci index.html con il nuovo public/index.html.
+4) Quando hai finito, Render aggiorna il gioco.
+
+La v4 contiene anche tutte le funzioni della v3.
