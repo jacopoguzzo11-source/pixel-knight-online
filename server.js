@@ -13,6 +13,7 @@ const io = new Server(server, {
 app.use(express.static(path.join(__dirname, "public")));
 
 const rooms = new Map();
+const publicQueue = [];
 const PLAYER_RADIUS = 0.56;
 const PLAYER_MIN_DISTANCE = 1.18;
 const TICK = 1000 / 30;
@@ -364,7 +365,70 @@ function updateBot(room, bot, dt, now) {
   }
 }
 
+
+function removeFromPublicQueue(socketId) {
+  for (let i = publicQueue.length - 1; i >= 0; i--) {
+    if (publicQueue[i].id === socketId) publicQueue.splice(i, 1);
+  }
+}
+
+function takeWaitingPlayer(excludeId) {
+  while (publicQueue.length) {
+    const entry = publicQueue.shift();
+    if (!entry || entry.id === excludeId) continue;
+    const s = io.sockets.sockets.get(entry.id);
+    if (s && s.connected && !s.data.room) return { socket: s, name: entry.name };
+  }
+  return null;
+}
+
+function createPublicMatch(waiting, newcomer, newcomerName) {
+  let c = roomCode();
+  while (rooms.has(c)) c = roomCode();
+
+  const room = newRoom(c, waiting.socket.id, "public");
+  rooms.set(c, room);
+
+  const p1 = createPlayer(waiting.socket.id, waiting.name, room, 0);
+  const p2 = createPlayer(newcomer.id, newcomerName, room, 1);
+  room.players.set(waiting.socket.id, p1);
+  room.players.set(newcomer.id, p2);
+
+  waiting.socket.join(c);
+  newcomer.join(c);
+  waiting.socket.data.room = c;
+  newcomer.data.room = c;
+
+  waiting.socket.emit("matchmakingStatus", { status: "matched" });
+  newcomer.emit("matchmakingStatus", { status: "matched" });
+  waiting.socket.emit("joined", { code: c, id: waiting.socket.id, mode: "public" });
+  newcomer.emit("joined", { code: c, id: newcomer.id, mode: "public" });
+  emitRoom(room);
+}
+
 io.on("connection", socket => {
+
+  socket.on("joinPublicQueue", ({ name } = {}) => {
+    if (socket.data.room) return;
+    removeFromPublicQueue(socket.id);
+
+    const cleanName = sanitizeName(name);
+    const waiting = takeWaitingPlayer(socket.id);
+
+    if (waiting) {
+      createPublicMatch(waiting, socket, cleanName);
+      return;
+    }
+
+    publicQueue.push({ id: socket.id, name: cleanName });
+    socket.emit("matchmakingStatus", { status: "waiting", position: publicQueue.length });
+  });
+
+  socket.on("cancelPublicQueue", () => {
+    removeFromPublicQueue(socket.id);
+    socket.emit("matchmakingStatus", { status: "cancelled" });
+  });
+
   socket.on("createRoom", ({ name } = {}) => {
     let c = roomCode(); while (rooms.has(c)) c = roomCode();
     const room = newRoom(c, socket.id, "private");
@@ -394,7 +458,7 @@ io.on("connection", socket => {
     const c = String(raw || "").trim().toUpperCase();
     const room = rooms.get(c);
     if (!room) return socket.emit("joinError", "Stanza inesistente.");
-    if (room.mode !== "private") return socket.emit("joinError", "Questa è una partita contro bot.");
+    if (room.mode !== "private") return socket.emit("joinError", "Questa stanza non accetta ingressi tramite codice.");
     if (room.players.size >= 2) return socket.emit("joinError", "La stanza è piena.");
     if (room.phase !== "lobby") return socket.emit("joinError", "Il duello è già iniziato.");
     const p = createPlayer(socket.id, name, room, 1);
@@ -508,6 +572,7 @@ io.on("connection", socket => {
   });
 
   socket.on("disconnect", () => {
+    removeFromPublicQueue(socket.id);
     const room = getRoom(socket); if (!room) return;
     if (room.mode === "bot") {
       rooms.delete(room.code);
