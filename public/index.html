@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pixel Knight Online Duel v4</title>
+<title>Pixel Knight Online Duel v5</title>
 <style>
 :root{--panel:#141618;--line:#4f4b40;--gold:#d0ad5b;--red:#ad4542;--green:#63885c;--text:#eee9dc;--muted:#aaa495}
 *{box-sizing:border-box}
@@ -70,14 +70,14 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
   <div id="cross"></div><div id="damageNumbers"></div><div id="centerMsg"></div>
   <div id="blockState" class="card">SCUDO ALZATO</div>
   <div id="bottom"><div class="card" id="weaponCard"><div class="small">EQUIPAGGIAMENTO</div><b id="weaponText">Spada</b><div class="ammo" id="ammoText"></div></div></div>
-  <div id="help" class="card">W avanti · S indietro · A sinistra · D destra<br>SPAZIO salto · SHIFT corsa · Mouse guarda · CLICK SX attacco<br>CLICK DX scudo · I inventario · ESC libera mouse</div>
+  <div id="help" class="card">W avanti · S indietro · A sinistra · D destra<br>SPAZIO salto · SHIFT corsa · Mouse guarda · CLICK SX attacco (con arco: tieni e rilascia)<br>CLICK DX scudo · I inventario · ESC libera mouse</div>
   <div id="damage"></div>
 </div>
 
 <div class="overlay show" id="menu">
  <div class="modal">
-  <h1>⚔ Pixel Knight Online Duel v4</h1>
-  <p>Puoi giocare contro un amico in una stanza privata oppure allenarti contro un bot.</p>
+  <h1>⚔ Pixel Knight Online Duel v5</h1>
+  <p>Puoi giocare contro un amico, allenarti contro un bot oppure cercare automaticamente un avversario online.</p>
   <div class="grid2">
    <div class="lobbybox">
     <h3>👥 Stanza privata</h3>
@@ -101,7 +101,25 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
     </div>
     <p class="small">Facile è lento e non para. Medio è più aggressivo. Difficile si muove meglio e usa anche lo scudo.</p>
   </div>
+
+  <div class="lobbybox" style="margin-top:10px">
+    <h3>🌐 Gioca pubblico</h3>
+    <input id="publicName" maxlength="18" placeholder="Il tuo nome"/>
+    <div style="height:8px"></div>
+    <button class="primary" id="publicBtn">Cerca un avversario online</button>
+    <p class="small">Ti abbina a un altro giocatore che, nello stesso momento, sta cercando una partita pubblica su questo gioco.</p>
+  </div>
   <p class="small" id="menuError"></p>
+ </div>
+</div>
+
+
+<div class="overlay" id="matchmaking">
+ <div class="modal" style="max-width:520px;text-align:center">
+  <h2>🌐 Ricerca avversario</h2>
+  <p id="matchText">Sto cercando un altro giocatore online...</p>
+  <div style="font-size:38px;margin:14px 0">⚔</div>
+  <button id="cancelMatch">Annulla ricerca</button>
  </div>
 </div>
 
@@ -145,7 +163,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.m
 
 const socket=io();
 const game=document.getElementById("game");
-const menu=document.getElementById("menu"),lobby=document.getElementById("lobby"),inventory=document.getElementById("inventory");
+const menu=document.getElementById("menu"),lobby=document.getElementById("lobby"),inventory=document.getElementById("inventory"),matchmaking=document.getElementById("matchmaking");
 const ui={
  meName:document.getElementById("meName"),roomLabel:document.getElementById("roomLabel"),mapLabel:document.getElementById("mapLabel"),
  score:document.getElementById("score"),hpFill:document.getElementById("hpFill"),hpText:document.getElementById("hpText"),
@@ -241,16 +259,112 @@ const gloveMat=new THREE.MeshStandardMaterial({color:0x55595b,roughness:.55,meta
 function arm(x){const a=new THREE.Mesh(new THREE.CapsuleGeometry(.09,.56,4,8),skinMat);a.position.set(x,-.39,-.75);a.rotation.x=1.05;a.rotation.z=x>0?-.12:.12;vm.add(a);const g=new THREE.Mesh(new THREE.BoxGeometry(.22,.18,.22),gloveMat);g.position.set(x,-.27,-1.03);vm.add(g)}
 arm(-.32);arm(.36);
 
-const swordGroup=new THREE.Group(),spearGroup=new THREE.Group(),axeGroup=new THREE.Group(),bowGroup=new THREE.Group(),shieldGroup=new THREE.Group();vm.add(swordGroup,spearGroup,axeGroup,bowGroup,shieldGroup);
-function cylinder(r,h,color){return new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,10),new THREE.MeshStandardMaterial({color,roughness:.7,metalness:.15}))}
-function bladeBox(w,h,d,color=0xd7dbdc){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.22,metalness:.9}))}
-let h=cylinder(.04,.36,0x5f3f27);h.rotation.x=Math.PI/2;swordGroup.add(h);let b=bladeBox(.075,.035,1.15);b.position.z=-.68;swordGroup.add(b);let g=bladeBox(.45,.055,.07,0xb08e42);g.position.z=-.1;swordGroup.add(g);swordGroup.position.set(.37,-.23,-.87);swordGroup.rotation.set(.06,-.12,-.05);
-let shaft=cylinder(.035,1.75,0x6b4c2d);shaft.rotation.x=Math.PI/2;spearGroup.add(shaft);let tip=new THREE.Mesh(new THREE.ConeGeometry(.09,.38,8),new THREE.MeshStandardMaterial({color:0xd9dddd,metalness:.9,roughness:.2}));tip.rotation.x=-Math.PI/2;tip.position.z=-1.05;spearGroup.add(tip);spearGroup.position.set(.34,-.25,-1.0);
-let axeHandle=cylinder(.045,.72,0x66452d);axeHandle.rotation.x=Math.PI/2;axeGroup.add(axeHandle);let axeHead=bladeBox(.48,.18,.12,0xb9bfc0);axeHead.position.z=-.42;axeGroup.add(axeHead);axeGroup.position.set(.38,-.24,-.83);
-const bow=new THREE.Mesh(new THREE.TorusGeometry(.55,.025,8,28,Math.PI*1.35),new THREE.MeshStandardMaterial({color:0x70451f,roughness:.72}));bow.rotation.y=Math.PI/2;bow.rotation.z=-.68;bowGroup.add(bow);bowGroup.position.set(.34,-.2,-.95);
-const shield=new THREE.Mesh(new THREE.CylinderGeometry(.44,.5,.08,12),new THREE.MeshStandardMaterial({color:0x5f6d77,metalness:.55,roughness:.45}));shield.rotation.z=Math.PI/2;shieldGroup.add(shield);shieldGroup.position.set(-.48,-.18,-.85);shieldGroup.rotation.y=.25;
-const basePos={sword:new THREE.Vector3(.37,-.23,-.87),spear:new THREE.Vector3(.34,-.25,-1),axe:new THREE.Vector3(.38,-.24,-.83),bow:new THREE.Vector3(.34,-.2,-.95)};
-function setEquipment(){const w=me?.weapon||"sword";swordGroup.visible=w==="sword";spearGroup.visible=w==="spear";axeGroup.visible=w==="axe";bowGroup.visible=w==="bow";shieldGroup.visible=!!me?.shieldEquipped&&w!=="bow";if(me?.skin)gloveMat.color.setHex((SKINS[me.skin]||SKINS.crimson).color)}
+const swordGroup=new THREE.Group(),spearGroup=new THREE.Group(),axeGroup=new THREE.Group(),bowGroup=new THREE.Group(),shieldGroup=new THREE.Group();
+vm.add(swordGroup,spearGroup,axeGroup,bowGroup,shieldGroup);
+
+const matSteel=new THREE.MeshStandardMaterial({color:0xd5d8d6,roughness:.24,metalness:.92});
+const matDarkSteel=new THREE.MeshStandardMaterial({color:0x555b5e,roughness:.34,metalness:.84});
+const matGold=new THREE.MeshStandardMaterial({color:0xb28a3a,roughness:.42,metalness:.62});
+const matWood=new THREE.MeshStandardMaterial({color:0x654326,roughness:.82,metalness:.02});
+const matLeather=new THREE.MeshStandardMaterial({color:0x3e2920,roughness:.94});
+const matShield=new THREE.MeshStandardMaterial({color:0x566773,roughness:.42,metalness:.68});
+const matShieldDark=new THREE.MeshStandardMaterial({color:0x30383d,roughness:.48,metalness:.72});
+
+function cyl(r,h,mat,segments=12){
+ const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,segments),mat);m.castShadow=true;return m
+}
+function boxMesh(w,h,d,mat){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;return m
+}
+function cone(r,h,mat,segments=8){
+ const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,segments),mat);m.castShadow=true;return m
+}
+
+// SPADA: lama più definita, punta, guardia e impugnatura fasciata.
+{
+ const grip=cyl(.043,.34,matLeather);grip.rotation.x=Math.PI/2;grip.position.z=.12;swordGroup.add(grip);
+ for(let i=0;i<4;i++){const ring=cyl(.048,.018,matGold);ring.rotation.x=Math.PI/2;ring.position.z=.24-i*.075;swordGroup.add(ring)}
+ const pommel=new THREE.Mesh(new THREE.SphereGeometry(.075,10,8),matGold);pommel.position.z=.34;swordGroup.add(pommel);
+ const guard=boxMesh(.50,.055,.075,matGold);guard.position.z=-.09;swordGroup.add(guard);
+ const blade=boxMesh(.078,.026,1.02,matSteel);blade.position.z=-.62;swordGroup.add(blade);
+ const fuller=boxMesh(.018,.029,.76,matDarkSteel);fuller.position.z=-.56;swordGroup.add(fuller);
+ const tip=cone(.058,.22,matSteel,4);tip.rotation.x=-Math.PI/2;tip.rotation.z=Math.PI/4;tip.position.z=-1.24;swordGroup.add(tip);
+}
+
+// LANCIA: asta lignea, collare e punta più lunga.
+{
+ const shaft=cyl(.034,1.82,matWood);shaft.rotation.x=Math.PI/2;shaft.position.z=-.10;spearGroup.add(shaft);
+ const collar=cyl(.055,.16,matGold);collar.rotation.x=Math.PI/2;collar.position.z=-1.02;spearGroup.add(collar);
+ const tip=cone(.105,.48,matSteel,6);tip.rotation.x=-Math.PI/2;tip.position.z=-1.34;spearGroup.add(tip);
+ const rear=cyl(.048,.16,matDarkSteel);rear.rotation.x=Math.PI/2;rear.position.z=.87;spearGroup.add(rear);
+}
+
+// ASCIA: manico, collare e testa sagomata.
+{
+ const handle=cyl(.044,.92,matWood);handle.rotation.x=Math.PI/2;handle.position.z=.04;axeGroup.add(handle);
+ const collar=cyl(.065,.16,matGold);collar.rotation.x=Math.PI/2;collar.position.z=-.43;axeGroup.add(collar);
+ const headCore=boxMesh(.24,.20,.15,matDarkSteel);headCore.position.z=-.52;axeGroup.add(headCore);
+ const shape=new THREE.Shape();
+ shape.moveTo(0,0);shape.lineTo(.36,.08);shape.lineTo(.48,.30);shape.lineTo(.28,.34);shape.lineTo(.04,.22);shape.closePath();
+ const geo=new THREE.ExtrudeGeometry(shape,{depth:.075,bevelEnabled:true,bevelThickness:.02,bevelSize:.015,bevelSegments:1});
+ geo.center();
+ const blade=new THREE.Mesh(geo,matSteel);blade.scale.set(1.05,1.05,1);blade.rotation.y=Math.PI/2;blade.position.set(.24,.02,-.54);blade.castShadow=true;axeGroup.add(blade);
+ const backSpike=cone(.11,.34,matSteel,6);backSpike.rotation.z=-Math.PI/2;backSpike.position.set(-.27,.02,-.54);axeGroup.add(backSpike);
+}
+
+// ARCO: arco curvo, corda dinamica e freccia visibile durante la tensione.
+{
+ const curve=new THREE.CatmullRomCurve3([
+   new THREE.Vector3(0,.62,0),
+   new THREE.Vector3(-.12,.34,-.03),
+   new THREE.Vector3(-.17,0,0),
+   new THREE.Vector3(-.12,-.34,-.03),
+   new THREE.Vector3(0,-.62,0)
+ ]);
+ const limb=new THREE.Mesh(new THREE.TubeGeometry(curve,30,.027,7,false),matWood);limb.castShadow=true;bowGroup.add(limb);
+ const grip=boxMesh(.11,.22,.08,matLeather);grip.position.x=-.16;bowGroup.add(grip);
+}
+const bowStringGeom=new THREE.BufferGeometry();
+const bowString=new THREE.Line(bowStringGeom,new THREE.LineBasicMaterial({color:0xe6dfca}));
+bowGroup.add(bowString);
+const bowArrow=new THREE.Group();
+const arrowShaft=cyl(.014,1.18,new THREE.MeshStandardMaterial({color:0xb79058,roughness:.85}),8);arrowShaft.rotation.x=Math.PI/2;arrowShaft.position.z=-.45;bowArrow.add(arrowShaft);
+const arrowTip=cone(.045,.16,matSteel,6);arrowTip.rotation.x=-Math.PI/2;arrowTip.position.z=-1.12;bowArrow.add(arrowTip);
+const feather1=boxMesh(.11,.025,.17,new THREE.MeshStandardMaterial({color:0x7c3030,roughness:.85}));feather1.position.z=.12;bowArrow.add(feather1);
+bowGroup.add(bowArrow);
+
+// SCUDO: bordo, placca centrale e borchie. A riposo resta abbassato.
+{
+ const disc=new THREE.Mesh(new THREE.CylinderGeometry(.49,.52,.075,16),matShield);disc.rotation.z=Math.PI/2;disc.castShadow=true;shieldGroup.add(disc);
+ const rim=new THREE.Mesh(new THREE.TorusGeometry(.495,.035,8,22),matDarkSteel);rim.rotation.y=Math.PI/2;shieldGroup.add(rim);
+ const boss=new THREE.Mesh(new THREE.SphereGeometry(.13,12,9),matGold);boss.scale.x=.45;boss.position.x=-.06;shieldGroup.add(boss);
+ for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const stud=new THREE.Mesh(new THREE.SphereGeometry(.028,8,6),matGold);stud.position.set(-.055,Math.cos(a)*.36,Math.sin(a)*.36);shieldGroup.add(stud)}
+}
+
+const weaponBase={
+ sword:{pos:new THREE.Vector3(.38,-.25,-.86),rot:new THREE.Euler(.08,-.12,-.08)},
+ spear:{pos:new THREE.Vector3(.33,-.29,-.78),rot:new THREE.Euler(.02,-.04,0)},
+ axe:{pos:new THREE.Vector3(.39,-.26,-.82),rot:new THREE.Euler(.10,-.10,-.08)},
+ bow:{pos:new THREE.Vector3(.35,-.08,-.83),rot:new THREE.Euler(.02,-.14,.04)}
+};
+const shieldLowPos=new THREE.Vector3(-.57,-.72,-.72);
+const shieldHighPos=new THREE.Vector3(-.20,-.08,-.61);
+const shieldLowRot=new THREE.Euler(.30,.30,-.16);
+const shieldHighRot=new THREE.Euler(.02,.08,.04);
+
+for(const [id,g] of Object.entries({sword:swordGroup,spear:spearGroup,axe:axeGroup,bow:bowGroup})){
+ g.position.copy(weaponBase[id].pos);g.rotation.copy(weaponBase[id].rot);
+}
+shieldGroup.position.copy(shieldLowPos);shieldGroup.rotation.copy(shieldLowRot);
+
+let bowDrawing=false,bowDraw=0,bowRelease=0;
+
+function setEquipment(){
+ const w=me?.weapon||"sword";
+ swordGroup.visible=w==="sword";spearGroup.visible=w==="spear";axeGroup.visible=w==="axe";bowGroup.visible=w==="bow";
+ shieldGroup.visible=!!me?.shieldEquipped&&w!=="bow";
+ if(me?.skin)gloveMat.color.setHex((SKINS[me.skin]||SKINS.crimson).color);
+}
 
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}addEventListener("resize",resize);
 function meFromState(){return state?.players?.find(p=>p.id===myId)||null}
@@ -259,7 +373,7 @@ function weaponName(p){return WEAPON_NAMES[p?.weapon]||"⚔ Spada"}
 
 function refreshHud(){
  me=meFromState();other=otherFromState();if(!me)return;
- ui.meName.textContent=me.name;ui.roomLabel.textContent=state?.mode==="bot"?"Allenamento contro bot":"Stanza "+roomCode;ui.mapLabel.textContent=state?.mapName||"";
+ ui.meName.textContent=me.name;ui.roomLabel.textContent=state?.mode==="bot"?"Allenamento contro bot":(state?.mode==="public"?"Partita pubblica":"Stanza "+roomCode);ui.mapLabel.textContent=state?.mapName||"";
  ui.hpFill.style.width=me.hp+"%";ui.hpText.textContent=Math.round(me.hp);ui.stFill.style.width=me.stamina+"%";ui.stText.textContent=Math.round(me.stamina);
  ui.weapon.textContent=weaponName(me)+(me.shieldEquipped?" + 🛡":"");
  ui.ammo.textContent=me.weapon==="bow"?"Frecce: "+me.ammo:(me.shieldOwned?(me.shieldEquipped?"Scudo equipaggiato":"Scudo nello zaino"):"");
@@ -327,11 +441,11 @@ function renderShieldSelector(){
 }
 function refreshLobby(){
  if(!state||!me)return;
- const isBot=state.mode==="bot";
- document.getElementById("lobbyTitle").textContent=isBot?`Allenamento · ${other?.name||"Bot"}`:"Stanza privata";
- document.getElementById("roomCode").style.display=isBot?"none":"block";
+ const isBot=state.mode==="bot",isPublic=state.mode==="public";
+ document.getElementById("lobbyTitle").textContent=isBot?`Allenamento · ${other?.name||"Bot"}`:(isPublic?`Partita pubblica · ${other?.name||"Avversario"}`:"Stanza privata");
+ document.getElementById("roomCode").style.display=(isBot||isPublic)?"none":"block";
  document.getElementById("roomCode").textContent=roomCode;
- document.getElementById("lobbyHelp").textContent=isBot?"Scegli mappa, skin ed equipaggiamento. Quando sei pronto, premi Pronto.":"Invia il codice al tuo amico. L'host sceglie la mappa; poi entrambi premete Pronto.";
+ document.getElementById("lobbyHelp").textContent=isBot?"Scegli mappa, skin ed equipaggiamento. Quando sei pronto, premi Pronto.":(isPublic?"Avversario trovato. Scegli equipaggiamento e skin; l'host può scegliere la mappa. Poi entrambi premete Pronto.":"Invia il codice al tuo amico. L'host sceglie la mappa; poi entrambi premete Pronto.");
  const ps=document.getElementById("players");ps.innerHTML="";
  state.players.forEach(p=>{
   const d=document.createElement("div");d.className="lobbybox";d.style.margin="6px 0";
@@ -367,8 +481,22 @@ function enterArena(){lobby.classList.remove("show");playing=true;renderer.domEl
 function openInventory(){if(!playing)return;document.exitPointerLock?.();refreshInventory();inventory.classList.add("show")}
 function closeInventory(){inventory.classList.remove("show");renderer.domElement.requestPointerLock?.()}
 
-socket.on("joined",d=>{myId=d.id;roomCode=d.code;lobbySignature="";menu.classList.remove("show");lobby.classList.add("show")});
+socket.on("joined",d=>{myId=d.id;roomCode=d.code;lobbySignature="";menu.classList.remove("show");matchmaking.classList.remove("show");lobby.classList.add("show")});
 socket.on("joinError",e=>document.getElementById("menuError").textContent=e);
+
+socket.on("matchmakingStatus",d=>{
+ if(d.status==="waiting"){
+  menu.classList.remove("show");
+  matchmaking.classList.add("show");
+  document.getElementById("matchText").textContent="Sto cercando un altro giocatore online... Puoi lasciare questa schermata aperta.";
+ }else if(d.status==="cancelled"){
+  matchmaking.classList.remove("show");
+  menu.classList.add("show");
+ }else if(d.status==="matched"){
+  document.getElementById("matchText").textContent="Avversario trovato!";
+ }
+});
+
 socket.on("state",s=>{
  const oldMap=state?.map;state=s;me=meFromState();other=otherFromState();
  if(state.map!==oldMap)buildArena(state.map);
@@ -390,6 +518,8 @@ socket.on("combatEvent",e=>{
 document.getElementById("createBtn").addEventListener("click",()=>socket.emit("createRoom",{name:document.getElementById("createName").value}));
 document.getElementById("joinBtn").addEventListener("click",()=>socket.emit("joinRoom",{name:document.getElementById("joinName").value,code:document.getElementById("joinCode").value}));
 document.querySelectorAll("[data-bot]").forEach(b=>b.addEventListener("click",()=>socket.emit("createBotRoom",{name:document.getElementById("botName").value,difficulty:b.dataset.bot})));
+document.getElementById("publicBtn").addEventListener("click",()=>socket.emit("joinPublicQueue",{name:document.getElementById("publicName").value}));
+document.getElementById("cancelMatch").addEventListener("click",()=>socket.emit("cancelPublicQueue"));
 document.getElementById("readyBtn").addEventListener("click",()=>socket.emit("ready"));
 document.getElementById("closeInv").addEventListener("click",closeInventory);
 
@@ -404,11 +534,30 @@ document.addEventListener("keydown",e=>{
 document.addEventListener("keyup",e=>keys[e.code]=false);
 renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());
 renderer.domElement.addEventListener("mousedown",e=>{
- if(!playing)return;if(!locked){renderer.domElement.requestPointerLock?.();return}
- if(e.button===0){socket.emit("attack");attackAnim=me?.weapon==="axe"?.42:.3}
- if(e.button===2){if(!me?.shieldOwned||!me?.shieldEquipped||me?.weapon==="bow"){showMessage("Equipaggia uno scudo per parare",950);return}local.blocking=true}
+ if(!playing)return;
+ if(!locked){renderer.domElement.requestPointerLock?.();return}
+ if(e.button===0){
+  if(me?.weapon==="bow"){
+   if((me?.ammo||0)<=0){showMessage("Nessuna freccia",900);return}
+   bowDrawing=true;
+  }else{
+   socket.emit("attack");
+   attackAnim=me?.weapon==="axe"?.58:(me?.weapon==="spear"?.36:.44);
+  }
+ }
+ if(e.button===2){
+  if(!me?.shieldOwned||!me?.shieldEquipped||me?.weapon==="bow"){showMessage("Equipaggia uno scudo per parare",950);return}
+  local.blocking=true;
+ }
 });
-document.addEventListener("mouseup",e=>{if(e.button===2)local.blocking=false});
+document.addEventListener("mouseup",e=>{
+ if(e.button===2)local.blocking=false;
+ if(e.button===0&&bowDrawing){
+  bowDrawing=false;
+  bowRelease=.18;
+  socket.emit("attack");
+ }
+});
 
 function resolveLocalMapCollision(x,z){
  const m=MAP_INFO[state?.map]||MAP_INFO.keep,rad=.56,limit=m.arena-rad;x=Math.max(-limit,Math.min(limit,x));z=Math.max(-limit,Math.min(limit,z));
@@ -433,11 +582,75 @@ function updateLocal(dt){
 }
 let poseTimer=0;
 function sendPose(dt){poseTimer-=dt;if(poseTimer>0)return;poseTimer=.045;socket.emit("pose",{x:local.x,y:local.y,z:local.z,yaw:local.yaw,pitch:local.pitch,blocking:local.blocking})}
+function lerpEuler(obj,target,amount){
+ obj.rotation.x+= (target.x-obj.rotation.x)*amount;
+ obj.rotation.y+= (target.y-obj.rotation.y)*amount;
+ obj.rotation.z+= (target.z-obj.rotation.z)*amount;
+}
 function animateWeapons(dt){
- const groups={sword:swordGroup,spear:spearGroup,axe:axeGroup,bow:bowGroup},current=groups[me?.weapon||"sword"];
- for(const [id,grp] of Object.entries(groups)){grp.position.lerp(basePos[id],Math.min(1,dt*16));grp.rotation.x*=Math.pow(.04,dt);grp.rotation.z*=Math.pow(.04,dt)}
- if(attackAnim>0&&current){attackAnim-=dt;const total=me?.weapon==="axe"?.42:.3,p=1-Math.max(0,attackAnim)/total,s=Math.sin(p*Math.PI);if(me?.weapon==="bow")current.rotation.x=-s*.14;else if(me?.weapon==="spear"){current.position.z=basePos.spear.z-s*.62;current.rotation.x=-s*.18}else if(me?.weapon==="axe"){current.rotation.z=-s*1.0;current.rotation.x=-s*.45}else{current.rotation.x=-s*.8;current.position.z=basePos.sword.z-s*.34}}
- shieldGroup.rotation.z+=(local.blocking?.5:0-shieldGroup.rotation.z)*Math.min(1,dt*12);
+ const groups={sword:swordGroup,spear:spearGroup,axe:axeGroup,bow:bowGroup};
+ const currentId=me?.weapon||"sword";
+ const current=groups[currentId];
+ const settle=Math.min(1,dt*13);
+
+ for(const [id,grp] of Object.entries(groups)){
+  grp.position.lerp(weaponBase[id].pos,settle);
+  lerpEuler(grp,weaponBase[id].rot,settle);
+ }
+
+ // Scudo: normalmente basso; col tasto destro sale davanti al corpo.
+ const shieldTargetPos=local.blocking?shieldHighPos:shieldLowPos;
+ const shieldTargetRot=local.blocking?shieldHighRot:shieldLowRot;
+ shieldGroup.position.lerp(shieldTargetPos,Math.min(1,dt*15));
+ lerpEuler(shieldGroup,shieldTargetRot,Math.min(1,dt*15));
+
+ if(attackAnim>0&&current&&currentId!=="bow"){
+  const total=currentId==="axe"?.58:(currentId==="spear"?.36:.44);
+  attackAnim=Math.max(0,attackAnim-dt);
+  const p=1-attackAnim/total;
+
+  if(currentId==="spear"){
+   // Affondo diritto: la lancia va in avanti e torna indietro.
+   const thrust=Math.sin(Math.PI*p);
+   current.position.z=weaponBase.spear.pos.z-thrust*.92;
+   current.position.y=weaponBase.spear.pos.y+Math.sin(Math.PI*p)*.035;
+  }else if(currentId==="axe"){
+   // Colpo pesante dall'alto verso il basso.
+   const wind=Math.sin(Math.PI*p);
+   current.rotation.x=weaponBase.axe.rot.x-wind*1.38;
+   current.rotation.z=weaponBase.axe.rot.z-wind*.52;
+   current.position.y=weaponBase.axe.pos.y+wind*.18;
+  }else{
+   // Fendente diagonale della spada.
+   const slash=Math.sin(Math.PI*p);
+   current.rotation.x=weaponBase.sword.rot.x-slash*.72;
+   current.rotation.z=weaponBase.sword.rot.z-slash*1.10;
+   current.rotation.y=weaponBase.sword.rot.y+slash*.22;
+   current.position.x=weaponBase.sword.pos.x-slash*.10;
+   current.position.z=weaponBase.sword.pos.z-slash*.28;
+  }
+ }
+
+ // Arco: tieni premuto per tendere, rilascia per scoccare.
+ if(currentId==="bow"){
+  if(bowDrawing) bowDraw=Math.min(1,bowDraw+dt*2.3);
+  else bowDraw=Math.max(0,bowDraw-dt*(bowRelease>0?8:4.5));
+  if(bowRelease>0) bowRelease=Math.max(0,bowRelease-dt);
+
+  const pull=.34*bowDraw;
+  bowString.geometry.setFromPoints([
+   new THREE.Vector3(0,.62,0),
+   new THREE.Vector3(0,0,pull),
+   new THREE.Vector3(0,-.62,0)
+  ]);
+  bowArrow.visible=bowDrawing||bowDraw>.03||bowRelease>0;
+  bowArrow.position.z=pull*.72;
+  bowGroup.position.z=weaponBase.bow.pos.z+bowDraw*.05;
+  bowGroup.rotation.y=weaponBase.bow.rot.y-bowDraw*.06;
+ }else{
+  bowDrawing=false;bowDraw=Math.max(0,bowDraw-dt*7);
+  bowArrow.visible=false;
+ }
 }
 function updateVisuals(dt){
  camera.position.set(local.x,1.68+local.y,local.z);camera.rotation.y=local.yaw;camera.rotation.x=local.pitch;
