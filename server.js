@@ -89,6 +89,7 @@ function mapOf(room) { return MAPS[room.map] || MAPS.keep; }
 function forwardFromYaw(yaw) { return { x: -Math.sin(yaw), z: -Math.cos(yaw) }; }
 function spawnForIndex(room, i) { return mapOf(room).spawns[i] || mapOf(room).spawns[0]; }
 function formatCapacity(room) {
+  if (room.mode === "crazy") return 3;
   if (room.mode !== "private") return 2;
   if (room.privateFormat === "1v1v1") return 3;
   if (room.privateFormat === "2v2") return 4;
@@ -124,6 +125,7 @@ function roomPublic(room) {
     privateFormat: room.privateFormat || "1v1",
     maxPlayers: formatCapacity(room),
     botDifficulty: room.botDifficulty || null,
+    crazyNpc: room.mode === "crazy" ? room.crazyNpc : null,
     players: [...room.players.values()].map(playerPublic),
     arrows: [...room.arrows.values()].map(a => ({
       id: a.id, x: a.x, y: a.y, z: a.z, yaw: a.yaw, pitch: a.pitch, owner: a.owner, kind: a.kind || "arrow"
@@ -137,6 +139,7 @@ function newRoom(code, hostId, mode = "private", botDifficulty = null, privateFo
   return {
     code, hostId, mode, botDifficulty, privateFormat, map: "keep",
     players: new Map(), arrows: new Map(),
+    crazyNpc: mode === "crazy" ? { x: 8, y: 0, z: 0, yaw: 0, t: 0, name: "Wei" } : null,
     phase: "lobby", countdown: 0, message: "", arrowSeq: 1
   };
 }
@@ -235,7 +238,23 @@ function resetRound(room) {
 function beginCountdown(room) {
   if (room.phase !== "lobby") return;
   room.phase = "countdown"; room.countdown = 3; emitRoom(room);
-  const iv = setInterval(() => {
+  const iv = function updateCrazyNpc(room, dt) {
+  if (room.mode !== "crazy" || !room.crazyNpc) return;
+  const npc = room.crazyNpc;
+  npc.t += dt * 0.34;
+
+  const radius = room.map === "forest" ? 10.5 : 8.8;
+  const cz = room.map === "forest" ? 0.5 : 0;
+
+  const oldX = npc.x, oldZ = npc.z;
+  npc.x = Math.cos(npc.t) * radius;
+  npc.z = cz + Math.sin(npc.t * 1.08) * radius * 0.78;
+
+  const dx = npc.x - oldX, dz = npc.z - oldZ;
+  if (Math.hypot(dx, dz) > 0.0001) npc.yaw = Math.atan2(-dx, -dz);
+}
+
+setInterval(() => {
     if (!rooms.has(room.code)) return clearInterval(iv);
     if (room.players.size !== formatCapacity(room)) {
       clearInterval(iv); room.phase = "lobby"; room.countdown = 0; emitRoom(room); return;
@@ -493,14 +512,19 @@ function removeFromCrazyQueue(socketId) {
   }
 }
 
-function takeCrazyWaitingPlayer(excludeId) {
-  while (crazyQueue.length) {
-    const entry = crazyQueue.shift();
-    if (!entry || entry.id === excludeId) continue;
-    const s = io.sockets.sockets.get(entry.id);
-    if (s && s.connected && !s.data.room) return { socket: s, name: entry.name };
+function getCrazyTrio() {
+  for (let i = crazyQueue.length - 1; i >= 0; i--) {
+    const entry = crazyQueue[i];
+    const s = entry ? io.sockets.sockets.get(entry.id) : null;
+    if (!entry || !s || !s.connected || s.data.room) crazyQueue.splice(i, 1);
   }
-  return null;
+  if (crazyQueue.length < 3) return null;
+
+  const picked = crazyQueue.splice(0, 3);
+  return picked.map(entry => ({
+    socket: io.sockets.sockets.get(entry.id),
+    name: entry.name
+  })).filter(x => x.socket && x.socket.connected);
 }
 
 function removeFromPublicQueue(socketId) {
@@ -519,35 +543,33 @@ function takeWaitingPlayer(excludeId) {
   return null;
 }
 
-function createCrazyMatch(waiting, newcomer, newcomerName) {
+function createCrazyMatch(entries) {
+  if (!entries || entries.length !== 3) return;
   let c = roomCode();
   while (rooms.has(c)) c = roomCode();
 
-  const room = newRoom(c, waiting.socket.id, "crazy", null, "1v1");
+  const room = newRoom(c, entries[0].socket.id, "crazy", null, "1v1v1");
   rooms.set(c, room);
 
-  const p1 = createPlayer(waiting.socket.id, waiting.name, room, 0);
-  const p2 = createPlayer(newcomer.id, newcomerName, room, 1);
-  for (const p of [p1, p2]) {
+  entries.forEach((entry, index) => {
+    const p = createPlayer(entry.socket.id, entry.name, room, index);
     p.owned.horsegun = true;
     p.owned.guitar = false;
     p.longNails = false;
     p.weapon = "horsegun";
     p.shieldOwned = false;
     p.shieldEquipped = false;
-  }
-  room.players.set(waiting.socket.id, p1);
-  room.players.set(newcomer.id, p2);
 
-  waiting.socket.join(c);
-  newcomer.join(c);
-  waiting.socket.data.room = c;
-  newcomer.data.room = c;
+    room.players.set(entry.socket.id, p);
+    entry.socket.join(c);
+    entry.socket.data.room = c;
+  });
 
-  waiting.socket.emit("matchmakingStatus", { status: "matched", queue: "crazy" });
-  newcomer.emit("matchmakingStatus", { status: "matched", queue: "crazy" });
-  waiting.socket.emit("joined", { code: c, id: waiting.socket.id, mode: "crazy" });
-  newcomer.emit("joined", { code: c, id: newcomer.id, mode: "crazy" });
+  entries.forEach(entry => {
+    entry.socket.emit("matchmakingStatus", { status: "matched", queue: "crazy" });
+    entry.socket.emit("joined", { code: c, id: entry.socket.id, mode: "crazy" });
+  });
+
   emitRoom(room);
 }
 
@@ -605,15 +627,20 @@ io.on("connection", socket => {
     removeFromPublicQueue(socket.id);
 
     const cleanName = sanitizeName(name);
-    const waiting = takeCrazyWaitingPlayer(socket.id);
+    crazyQueue.push({ id: socket.id, name: cleanName });
 
-    if (waiting) {
-      createCrazyMatch(waiting, socket, cleanName);
+    const trio = getCrazyTrio();
+    if (trio && trio.length === 3) {
+      createCrazyMatch(trio);
       return;
     }
 
-    crazyQueue.push({ id: socket.id, name: cleanName });
-    socket.emit("matchmakingStatus", { status: "waiting", position: crazyQueue.length, queue: "crazy" });
+    socket.emit("matchmakingStatus", {
+      status: "waiting",
+      position: crazyQueue.findIndex(x => x.id === socket.id) + 1,
+      queue: "crazy",
+      needed: Math.max(0, 3 - crazyQueue.length)
+    });
   });
 
   socket.on("cancelCrazyQueue", () => {
@@ -802,6 +829,7 @@ io.on("connection", socket => {
 setInterval(() => {
   const dt = TICK / 1000, now = Date.now();
   for (const room of rooms.values()) {
+    updateCrazyNpc(room, dt);
     for (const p of room.players.values()) {
       if (room.phase === "active") {
         if (p.blocking) {
