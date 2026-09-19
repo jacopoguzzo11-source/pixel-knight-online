@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pixel Knight Online Duel v9</title>
+<title>Pixel Knight Online Duel v10</title>
 <style>
 :root{--panel:#141618;--line:#4f4b40;--gold:#d0ad5b;--red:#ad4542;--green:#63885c;--text:#eee9dc;--muted:#aaa495}
 *{box-sizing:border-box}
@@ -134,7 +134,7 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
 
 <div class="overlay show" id="menu">
  <div class="modal">
-  <h1>⚔ Pixel Knight Online Duel v9</h1>
+  <h1>⚔ Pixel Knight Online Duel v10</h1>
   <p>Puoi giocare contro un amico, allenarti contro un bot oppure cercare automaticamente un avversario online.</p>
   <div class="grid2">
    <div class="lobbybox">
@@ -178,7 +178,7 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
     <input id="crazyName" maxlength="18" placeholder="Il tuo nome"/>
     <div style="height:8px"></div>
     <button class="primary" id="crazyBtn">Entra in Crazy Weapon</button>
-    <p class="small">Modalità folle: cavalchi un cavallo mascherato bipede e usi una pistola che spara cavalli grandi.</p>
+    <p class="small">Modalità folle per 3 giocatori: cavalcate cavalli mascherati bipedi e usate armi assurde.</p>
   </div>
   <p class="small" id="menuError"></p>
  </div>
@@ -361,6 +361,39 @@ function makeKnight(color=0x6f3436){
  for(const sx of [-1,1]){const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.65,4,8),legMat);leg.position.set(.21*sx,.36,0);leg.castShadow=true;g.add(leg)}
  return g;
 }
+
+function makeCrazyNpc(){
+ const g=new THREE.Group();
+ const shirtMat=new THREE.MeshStandardMaterial({color:0x8f2424,roughness:.86});
+ const goldMat=new THREE.MeshStandardMaterial({color:0xc69b43,roughness:.55,metalness:.18});
+ const pantsMat=new THREE.MeshStandardMaterial({color:0x242426,roughness:.88});
+ const skinMatNpc=new THREE.MeshStandardMaterial({color:0xc99069,roughness:.9});
+ const hairMat=new THREE.MeshStandardMaterial({color:0x161515,roughness:.8});
+ const torso=new THREE.Mesh(new THREE.SphereGeometry(.67,18,14),shirtMat);
+ torso.scale.set(1.08,1.25,.82);torso.position.y=1.22;torso.castShadow=true;g.add(torso);
+ const belt=new THREE.Mesh(new THREE.TorusGeometry(.53,.045,8,20),goldMat);
+ belt.rotation.x=Math.PI/2;belt.position.y=.83;g.add(belt);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12),skinMatNpc);
+ head.position.y=2.12;head.castShadow=true;g.add(head);
+ const hair=new THREE.Mesh(new THREE.SphereGeometry(.35,16,10,0,Math.PI*2,0,Math.PI*.48),hairMat);
+ hair.position.y=2.20;hair.castShadow=true;g.add(hair);
+ const collar=new THREE.Mesh(new THREE.BoxGeometry(.62,.10,.12),goldMat);
+ collar.position.set(0,1.68,-.45);g.add(collar);
+ for(const sx of [-1,1]){
+  const arm=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.58,4,8),shirtMat);
+  arm.position.set(.62*sx,1.23,0);arm.rotation.z=.18*sx;arm.castShadow=true;g.add(arm);
+  const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.15,.62,4,8),pantsMat);
+  leg.position.set(.25*sx,.34,0);leg.castShadow=true;g.add(leg);
+ }
+ return g;
+}
+
+const crazyNpcMesh=makeCrazyNpc();
+crazyNpcMesh.visible=false;
+scene.add(crazyNpcMesh);
+let crazyNpcPos=new THREE.Vector3(8,0,0);
+let crazyNpcYaw=0;
+
 function makeNameTag(name){
  const canvas=document.createElement("canvas");canvas.width=512;canvas.height=96;
  const ctx=canvas.getContext("2d");
@@ -803,7 +836,7 @@ function refreshLobby(){
   :(isPublic
     ?"Avversario trovato. Scegli equipaggiamento e skin; l'host può scegliere la mappa. Poi entrambi premete Pronto."
     :(isCrazy
-      ?"Modalità folle: avversario trovato. La Crazy Gun è equipaggiata automaticamente."
+      ?"Crazy Weapon è una sfida a 3 giocatori tutti contro tutti. La Crazy Gun è equipaggiata automaticamente."
       :`Invia il codice agli altri giocatori. Servono ${state.maxPlayers} giocatori per iniziare. L'host sceglie la mappa.`));
  const ps=document.getElementById("players");ps.innerHTML="";
  state.players.forEach(p=>{
@@ -862,7 +895,7 @@ socket.on("matchmakingStatus",d=>{
   menu.classList.remove("show");
   matchmaking.classList.add("show");
   document.getElementById("matchText").textContent=d.queue==="crazy"
-   ?"Sto cercando un altro giocatore per Crazy Weapon..."
+   ?"Crazy Weapon: cerco 3 giocatori. Aspetto gli altri..."
    :"Sto cercando un altro giocatore online... Puoi lasciare questa schermata aperta.";
  }else if(d.status==="cancelled"){
   matchmaking.classList.remove("show");
@@ -1211,6 +1244,21 @@ function updateVisuals(dt){
   }
  }
  for(const id of [...remoteAvatars.keys()])if(!activeIds.has(id))removeRemoteAvatar(id);
+
+ if(state?.mode==="crazy"&&state?.crazyNpc){
+  crazyNpcMesh.visible=true;
+  const n=state.crazyNpc;
+  crazyNpcPos.lerp(new THREE.Vector3(n.x,n.y||0,n.z),Math.min(1,dt*5));
+  crazyNpcMesh.position.copy(crazyNpcPos);
+  let nd=n.yaw-crazyNpcYaw;
+  while(nd>Math.PI)nd-=Math.PI*2;
+  while(nd<-Math.PI)nd+=Math.PI*2;
+  crazyNpcYaw+=nd*Math.min(1,dt*6);
+  crazyNpcMesh.rotation.y=crazyNpcYaw;
+  crazyNpcMesh.position.y=Math.abs(Math.sin(performance.now()*.0055))*.035;
+ }else{
+  crazyNpcMesh.visible=false;
+ }
 
  function makeHorseProjectileMesh(){
  const g=new THREE.Group();
