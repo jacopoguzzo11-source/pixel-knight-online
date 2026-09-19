@@ -708,28 +708,53 @@ io.on("connection", socket => {
     emitRoom(room);
   });
 
-  socket.on("ready", () => {
+  socket.on("ready", (_payload = {}, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
     const room = getRoom(socket);
-    if (!room || room.phase !== "lobby") return;
-    const p = room.players.get(socket.id); if (!p) return;
+    if (!room) return reply({ ok: false, message: "Stanza non trovata." });
+    if (room.phase !== "lobby") return reply({ ok: false, message: "La partita sta già iniziando." });
+    const p = room.players.get(socket.id);
+    if (!p) return reply({ ok: false, message: "Giocatore non trovato." });
+
     p.ready = !p.ready;
     emitRoom(room);
-    if (room.players.size === formatCapacity(room) && [...room.players.values()].every(x => x.ready)) beginCountdown(room);
+    const readyCount = [...room.players.values()].filter(x => x.ready).length;
+    const needed = formatCapacity(room);
+    reply({ ok: true, ready: p.ready, readyCount, needed });
+
+    if (room.players.size === needed && [...room.players.values()].every(x => x.ready)) beginCountdown(room);
   });
 
-  socket.on("purchaseCrazy", item => {
+  socket.on("purchaseCrazy", (item, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
     const room = getRoom(socket);
-    if (!room || room.mode !== "crazy" || room.phase !== "lobby") return;
-    const p = room.players.get(socket.id); if (!p) return;
+    if (!room) return reply({ ok: false, message: "Stanza non trovata." });
+    if (room.mode !== "crazy") return reply({ ok: false, message: "Questo acquisto è solo per Crazy Weapon." });
+    if (room.phase !== "lobby") return reply({ ok: false, message: "Puoi comprare solo nella lobby." });
+    const p = room.players.get(socket.id);
+    if (!p) return reply({ ok: false, message: "Giocatore non trovato." });
 
     if (item === "longNails") {
-      if (p.longNails || p.coins < 60) return;
-      p.coins -= 60; p.longNails = true; emitRoom(room); return;
+      if (p.longNails) return reply({ ok: false, message: "Hai già le unghie lunghissime." });
+      if (p.coins < 60) return reply({ ok: false, message: "Non hai abbastanza monete." });
+      p.coins -= 60;
+      p.longNails = true;
+      emitRoom(room);
+      return reply({ ok: true, message: "Unghie lunghissime acquistate!", coins: p.coins });
     }
+
     if (item === "guitar") {
-      if (!p.longNails || p.owned.guitar || p.coins < 110) return;
-      p.coins -= 110; p.owned.guitar = true; p.weapon = "guitar"; emitRoom(room); return;
+      if (!p.longNails) return reply({ ok: false, message: "Prima devi comprare le unghie lunghissime." });
+      if (p.owned.guitar) return reply({ ok: false, message: "Hai già la Chitarra Sonora." });
+      if (p.coins < 110) return reply({ ok: false, message: "Non hai abbastanza monete." });
+      p.coins -= 110;
+      p.owned.guitar = true;
+      p.weapon = "guitar";
+      emitRoom(room);
+      return reply({ ok: true, message: "Chitarra Sonora acquistata ed equipaggiata!", coins: p.coins });
     }
+
+    reply({ ok: false, message: "Oggetto Crazy non valido." });
   });
 
   socket.on("purchase", item => {
