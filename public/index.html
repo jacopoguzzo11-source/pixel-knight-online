@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pixel Knight Online Duel v8</title>
+<title>Pixel Knight Online Duel v9</title>
 <style>
 :root{--panel:#141618;--line:#4f4b40;--gold:#d0ad5b;--red:#ad4542;--green:#63885c;--text:#eee9dc;--muted:#aaa495}
 *{box-sizing:border-box}
@@ -134,7 +134,7 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
 
 <div class="overlay show" id="menu">
  <div class="modal">
-  <h1>⚔ Pixel Knight Online Duel v8</h1>
+  <h1>⚔ Pixel Knight Online Duel v9</h1>
   <p>Puoi giocare contro un amico, allenarti contro un bot oppure cercare automaticamente un avversario online.</p>
   <div class="grid2">
    <div class="lobbybox">
@@ -210,6 +210,11 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
   <h3 style="margin-top:16px">3. Armeria</h3>
   <div class="store" id="store"></div>
 
+  <div id="crazyShopWrap" style="display:none">
+    <h3 style="margin-top:16px">Crazy Shop</h3>
+    <div class="store" id="crazyShop"></div>
+  </div>
+
   <h3 style="margin-top:16px">4. Equipaggia l'arma</h3>
   <div class="choiceGrid" id="weaponGrid"></div>
   <div class="choiceGrid" id="shieldGrid"></div>
@@ -248,7 +253,7 @@ const MAP_INFO={
  forest:{name:"Rovine della Foresta",arena:18,obstacles:[{x:-5.5,z:-4,r:.95},{x:5,z:4.5,r:.95},{x:-4,z:6.2,r:.85},{x:6,z:-5.5,r:.85}]},
  colosseum:{name:"Colosseo delle Ceneri",arena:17,obstacles:[{x:-6.2,z:-6.2,r:.8},{x:6.2,z:-6.2,r:.8},{x:-6.2,z:6.2,r:.8},{x:6.2,z:6.2,r:.8}]}
 };
-const WEAPON_NAMES={sword:"⚔ Spada",spear:"🔱 Lancia",axe:"🪓 Ascia da guerra",bow:"🏹 Arco",horsegun:"🔫 Crazy Gun"};
+const WEAPON_NAMES={sword:"⚔ Spada",spear:"🔱 Lancia",axe:"🪓 Ascia da guerra",bow:"🏹 Arco",horsegun:"🔫 Crazy Gun",guitar:"🎸 Chitarra Sonora"};
 const STORE=[
  {id:"bow",name:"🏹 Arco lungo",cost:75,desc:"Arma a distanza + 8 frecce."},
  {id:"arrows",name:"➶ 12 frecce",cost:20,desc:"Munizioni aggiuntive per l'arco."},
@@ -439,8 +444,8 @@ function arm(x){
 }
 const leftHand=arm(-.32),rightHand=arm(.36);
 
-const swordGroup=new THREE.Group(),spearGroup=new THREE.Group(),axeGroup=new THREE.Group(),bowGroup=new THREE.Group(),horseGunGroup=new THREE.Group(),shieldGroup=new THREE.Group();
-vm.add(swordGroup,spearGroup,axeGroup,bowGroup,horseGunGroup,shieldGroup);
+const swordGroup=new THREE.Group(),spearGroup=new THREE.Group(),axeGroup=new THREE.Group(),bowGroup=new THREE.Group(),horseGunGroup=new THREE.Group(),guitarGroup=new THREE.Group(),nailsGroup=new THREE.Group(),shieldGroup=new THREE.Group();
+vm.add(swordGroup,spearGroup,axeGroup,bowGroup,horseGunGroup,guitarGroup,nailsGroup,shieldGroup);
 
 const matSteel=new THREE.MeshStandardMaterial({color:0xd5d8d6,roughness:.24,metalness:.92});
 const matDarkSteel=new THREE.MeshStandardMaterial({color:0x555b5e,roughness:.34,metalness:.84});
@@ -542,6 +547,29 @@ bowGroup.add(bowArrow);
  horseGunGroup.add(horseHead);
 }
 
+// CHITARRA SONORA
+{
+ const body=new THREE.Mesh(new THREE.CylinderGeometry(.31,.31,.12,20),new THREE.MeshStandardMaterial({color:0x8a4c2f,roughness:.70,metalness:.04}));
+ body.rotation.x=Math.PI/2;body.castShadow=true;guitarGroup.add(body);
+ const hole=new THREE.Mesh(new THREE.TorusGeometry(.095,.018,8,20),new THREE.MeshStandardMaterial({color:0x2a1711,roughness:.9}));
+ hole.position.z=-.075;guitarGroup.add(hole);
+ const neck=boxMesh(.10,.075,.72,matWood);neck.position.set(0,0,-.48);guitarGroup.add(neck);
+ const head=boxMesh(.14,.08,.17,matGold);head.position.set(0,0,-.90);guitarGroup.add(head);
+ for(let i=-2;i<=2;i++){
+  const sg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(i*.018,.015,.22),new THREE.Vector3(i*.018,.015,-.86)]);
+  guitarGroup.add(new THREE.Line(sg,new THREE.LineBasicMaterial({color:0xd7d1c5})));
+ }
+}
+function buildLongNails(){
+ nailsGroup.clear();
+ const nailMat=new THREE.MeshStandardMaterial({color:0xf4e7df,roughness:.34,metalness:.02});
+ for(let i=0;i<5;i++){
+  const nail=new THREE.Mesh(new THREE.ConeGeometry(.018,.34,7),nailMat);
+  nail.rotation.x=-Math.PI/2;nail.position.set(.22+i*.035,-.18,-1.10-i*.012);nailsGroup.add(nail);
+ }
+}
+buildLongNails();
+
 // SCUDO: più piccolo e piatto verso l'avversario, non di taglio.
 {
  const disc=new THREE.Mesh(new THREE.CylinderGeometry(.34,.36,.055,18),matShield);
@@ -571,7 +599,8 @@ const weaponBase={
  spear:{pos:new THREE.Vector3(.33,-.29,-.78),rot:new THREE.Euler(.02,-.04,0)},
  axe:{pos:new THREE.Vector3(.39,-.31,-.78),rot:new THREE.Euler(.10,.02,-.16)},
  bow:{pos:new THREE.Vector3(.35,-.08,-.83),rot:new THREE.Euler(.02,-.14,.04)},
- horsegun:{pos:new THREE.Vector3(.36,-.16,-.78),rot:new THREE.Euler(.08,-.10,.02)}
+ horsegun:{pos:new THREE.Vector3(.36,-.16,-.78),rot:new THREE.Euler(.08,-.10,.02)},
+ guitar:{pos:new THREE.Vector3(.28,-.18,-.78),rot:new THREE.Euler(.04,-.10,-.10)}
 };
 const shieldLowPos=new THREE.Vector3(-.48,-.66,-.72);
 const shieldHighPos=new THREE.Vector3(-.37,-.33,-.78);
@@ -587,7 +616,7 @@ let bowDrawing=false,bowDraw=0,bowRelease=0;
 
 function setEquipment(){
  const w=me?.weapon||"sword";
- swordGroup.visible=w==="sword";spearGroup.visible=w==="spear";axeGroup.visible=w==="axe";bowGroup.visible=w==="bow";horseGunGroup.visible=w==="horsegun";
+ swordGroup.visible=w==="sword";spearGroup.visible=w==="spear";axeGroup.visible=w==="axe";bowGroup.visible=w==="bow";horseGunGroup.visible=w==="horsegun";guitarGroup.visible=w==="guitar";nailsGroup.visible=!!me?.longNails&&w==="guitar";
  shieldGroup.visible=!!me?.shieldEquipped&&w!=="bow"&&w!=="horsegun";
  if(me?.skin)gloveMat.color.setHex((SKINS[me.skin]||SKINS.crimson).color);
  if(typeof horseViewGroup!=="undefined")horseViewGroup.visible=state?.mode==="crazy";
@@ -672,7 +701,7 @@ function refreshHud(){
  ui.mapLabel.textContent=state?.mapName||"";
  ui.hpFill.style.width=me.hp+"%";ui.hpText.textContent=Math.round(me.hp);ui.stFill.style.width=me.stamina+"%";ui.stText.textContent=Math.round(me.stamina);
  ui.weapon.textContent=weaponName(me)+(me.shieldEquipped?" + 🛡":"");
- ui.ammo.textContent=me.weapon==="bow"?"Frecce: "+me.ammo:(me.shieldOwned?(me.shieldEquipped?"Scudo equipaggiato":"Scudo nello zaino"):"");
+ ui.ammo.textContent=me.weapon==="bow"?"Frecce: "+me.ammo:(me.weapon==="guitar"?"Unghie: "+(me.longNails?"LUNGHISSIME ✓":"mancanti"):(me.shieldOwned?(me.shieldEquipped?"Scudo equipaggiato":"Scudo nello zaino"):""));
  ui.block.style.display=local.blocking&&me.shieldEquipped?"block":"none";
 
  if(state?.mode==="private"&&state?.privateFormat==="2v2"){
@@ -728,7 +757,7 @@ function renderStore(){
 }
 function renderWeaponSelector(targetId="weaponGrid"){
  const c=document.getElementById(targetId);c.innerHTML="";
- for(const id of ["sword","spear","axe","bow","horsegun"]){
+ for(const id of ["sword","spear","axe","bow","horsegun","guitar"]){
   if(!me.owned?.[id])continue;
   const b=document.createElement("button");b.type="button";b.className=me.weapon===id?"selected":"";
   b.textContent=(me.weapon===id?"✓ ":"")+WEAPON_NAMES[id]+(id==="bow"?` (${me.ammo})`:"");
@@ -743,6 +772,24 @@ function renderShieldSelector(){
  b.disabled=me.weapon==="bow";
  b.textContent=me.weapon==="bow"?"🛡 Scudo non utilizzabile con arco":(me.shieldEquipped?"✓ 🛡 Scudo equipaggiato":"🛡 Equipaggia scudo");
  b.addEventListener("click",()=>{socket.emit("toggleShield");flashSelection("Scudo aggiornato")});c.appendChild(b);
+}
+function renderCrazyShop(){
+ const wrap=document.getElementById("crazyShopWrap"),c=document.getElementById("crazyShop");
+ const isCrazy=state?.mode==="crazy";wrap.style.display=isCrazy?"block":"none";
+ if(!isCrazy||!me){c.innerHTML="";return}
+ c.innerHTML="";
+ const items=[
+  {id:"longNails",name:"💅 Unghie lunghissime",cost:60,desc:"Servono per suonare la Chitarra Sonora. Sono volutamente esagerate.",owned:!!me.longNails,blocked:false},
+  {id:"guitar",name:"🎸 Chitarra Sonora",cost:110,desc:"Spara onde sonore. Prima devi comprare le unghie lunghissime.",owned:!!me.owned?.guitar,blocked:!me.longNails}
+ ];
+ for(const it of items){
+  const d=document.createElement("div");d.className="item";d.innerHTML=`<strong>${it.name}</strong><p class="small">${it.desc}</p><span>🪙 ${it.cost}</span><br>`;
+  const b=document.createElement("button");b.type="button";b.style.marginTop="7px";
+  if(it.owned){b.textContent="Già comprato";b.disabled=true}
+  else if(it.blocked){b.textContent="Prima compra le unghie";b.disabled=true}
+  else{b.textContent="Compra";b.addEventListener("click",()=>socket.emit("purchaseCrazy",it.id))}
+  d.appendChild(b);c.appendChild(d);
+ }
 }
 function refreshLobby(){
  if(!state||!me)return;
@@ -765,12 +812,12 @@ function refreshLobby(){
   d.innerHTML=`<b>${p.name}</b>${p.id===state.hostId?" · 👑 HOST":""}${p.isBot?" · 🤖":""}${team}<br><span class="small">${weaponName(p)} ${p.shieldEquipped?" + 🛡":""} · Skin: ${(SKINS[p.skin]||SKINS.crimson).name}${p.isBot?"":` · 🪙 ${p.coins} · ➶ ${p.ammo}`} ${p.ready?"· ✅ PRONTO":""}</span>`;
   ps.appendChild(d);
  });
- renderMapButtons();renderSkins();renderStore();renderWeaponSelector();renderShieldSelector();refreshInventory();
+ renderMapButtons();renderSkins();renderStore();renderCrazyShop();renderWeaponSelector();renderShieldSelector();refreshInventory();
  const rb=document.getElementById("readyBtn");rb.textContent=me.ready?"Annulla pronto":"✓ Pronto";
 }
 function refreshInventory(){
  const c=document.getElementById("invContent");if(!me)return;c.innerHTML="";
- for(const id of ["sword","spear","axe","bow","horsegun"]){
+ for(const id of ["sword","spear","axe","bow","horsegun","guitar"]){
   if(!me.owned?.[id])continue;
   const b=document.createElement("button");b.type="button";b.className=me.weapon===id?"selected":"";
   b.textContent=(me.weapon===id?"✓ ":"")+WEAPON_NAMES[id]+(id==="bow"?` · ${me.ammo} frecce`:"");
@@ -877,7 +924,7 @@ renderer.domElement.addEventListener("mousedown",e=>{
    bowDrawing=true;
   }else{
    socket.emit("attack");
-   attackAnim=me?.weapon==="horsegun"?.28:(me?.weapon==="axe"?.58:(me?.weapon==="spear"?.36:.44));
+   attackAnim=me?.weapon==="guitar"?.34:(me?.weapon==="horsegun"?.28:(me?.weapon==="axe"?.58:(me?.weapon==="spear"?.36:.44)));
   }
  }
  if(e.button===2){
@@ -1025,7 +1072,7 @@ function resetHandPose(hand,amount){
  lerpEuler(hand.glove,hand.gloveRot,amount);
 }
 function animateWeapons(dt){
- const groups={sword:swordGroup,spear:spearGroup,axe:axeGroup,bow:bowGroup,horsegun:horseGunGroup};
+ const groups={sword:swordGroup,spear:spearGroup,axe:axeGroup,bow:bowGroup,horsegun:horseGunGroup,guitar:guitarGroup};
  const currentId=me?.weapon||"sword";
  const current=groups[currentId];
  const settle=Math.min(1,dt*13);
@@ -1126,6 +1173,13 @@ function animateWeapons(dt){
    rightHand.glove.position.z=rightHand.gloveBase.z-kick*.20;
   }
  }
+ if(currentId==="guitar"&&attackAnim>0){
+  const total=.34,p=1-attackAnim/total,strum=Math.sin(Math.PI*Math.max(0,Math.min(1,p)));
+  guitarGroup.rotation.z=weaponBase.guitar.rot.z+strum*.18;
+  rightHand.glove.position.x=rightHand.gloveBase.x-strum*.18;
+  rightHand.glove.position.y=rightHand.gloveBase.y+strum*.08;
+  nailsGroup.rotation.z=strum*.16;
+ }
 }
 function updateVisuals(dt){
  camera.position.set(local.x,(state?.mode==="crazy"?2.58:1.68)+local.y,local.z);camera.rotation.y=local.yaw;camera.rotation.x=local.pitch;
@@ -1174,10 +1228,18 @@ const ids=new Set();
  if(state)for(const a of state.arrows){
   ids.add(a.id);let m=arrowMeshes.get(a.id);
   if(!m){
-   m=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.9,7),new THREE.MeshStandardMaterial({color:0xc8ad75,roughness:.8}));
-   m.rotation.x=Math.PI/2;m.castShadow=true;scene.add(m);arrowMeshes.set(a.id,m)
+   if((a.kind||"arrow")=="horse"){
+    m=makeHorseProjectileMesh();
+   }else if((a.kind||"arrow")=="soundwave"){
+    m=makeSoundWaveMesh();
+   }else{
+    m=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.9,7),new THREE.MeshStandardMaterial({color:0xc8ad75,roughness:.8}));
+    m.rotation.x=Math.PI/2;m.castShadow=true;
+   }
+   scene.add(m);arrowMeshes.set(a.id,m)
   }
-  m.position.set(a.x,a.y,a.z);m.rotation.y=a.yaw;m.rotation.x=Math.PI/2-a.pitch;
+  m.position.set(a.x,a.y,a.z);m.rotation.y=a.yaw;
+  if((a.kind||"arrow")=="arrow")m.rotation.x=Math.PI/2-a.pitch;
  }
  for(const [id,m] of arrowMeshes)if(!ids.has(id)){scene.remove(m);arrowMeshes.delete(id)}
  if(hitFlash>0){hitFlash-=dt;if(hitFlash<=0)ui.damage.style.opacity="0"}
