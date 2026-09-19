@@ -63,7 +63,8 @@ const WEAPONS = {
   spear: { name: "Lancia", type: "melee", damage: 24, reach: 4.65, width: 0.72, cooldown: 650, stamina: 20 },
   axe: { name: "Ascia da guerra", type: "melee", damage: 40, reach: 2.85, width: 1.02, cooldown: 820, stamina: 27 },
   bow: { name: "Arco", type: "bow", damage: 22, cooldown: 800, stamina: 12 },
-  horsegun: { name: "Crazy Gun", type: "horsegun", damage: 36, cooldown: 980, stamina: 12 }
+  horsegun: { name: "Crazy Gun", type: "horsegun", damage: 36, cooldown: 980, stamina: 12 },
+  guitar: { name: "Chitarra Sonora", type: "guitar", damage: 30, cooldown: 760, stamina: 10 }
 };
 const PRICES = { bow: 75, arrows: 20, spear: 65, axe: 85, shield: 120 };
 const SKINS = new Set(["crimson", "azure", "emerald", "obsidian"]);
@@ -113,7 +114,7 @@ function playerPublic(p) {
     ammo: p.ammo, coins: p.coins, score: p.score, ready: p.ready,
     owned: p.owned, shieldOwned: p.shieldOwned, shieldEquipped: p.shieldEquipped,
     skin: p.skin, isBot: !!p.isBot, botDifficulty: p.botDifficulty || null,
-    team: p.team, alive: p.hp > 0
+    team: p.team, alive: p.hp > 0, longNails: !!p.longNails
   };
 }
 function roomPublic(room) {
@@ -175,12 +176,12 @@ function createPlayer(id, name, room, index) {
     id, name: sanitizeName(name),
     x: s.x, y: 0, z: s.z, yaw: s.yaw, pitch: 0,
     hp: 100, stamina: 100, weapon: "sword",
-    owned: { sword: true, spear: false, axe: false, bow: false, horsegun: false },
+    owned: { sword: true, spear: false, axe: false, bow: false, horsegun: false, guitar: false },
     shieldOwned: false, shieldEquipped: false, blocking: false,
     ammo: 0, coins: 220, score: 0, ready: false,
     attackAt: 0, lastMoveAt: Date.now(), skin: "crimson",
     team: teamForIndex(room, index),
-    isBot: false, botDifficulty: null
+    isBot: false, botDifficulty: null, longNails: false
   };
 }
 
@@ -217,7 +218,7 @@ function resetRound(room) {
     p.attackAt = 0; p.lastMoveAt = Date.now();
     if (room.mode === "crazy") {
       p.owned.horsegun = true;
-      p.weapon = "horsegun";
+      if (!p.owned.guitar) p.weapon = "horsegun";
       p.shieldOwned = false;
       p.shieldEquipped = false;
     }
@@ -389,6 +390,16 @@ function performAttack(room, p, noAmmoSocket = null) {
       dz: -Math.cos(p.yaw) * cp, yaw: p.yaw, pitch: p.pitch, life: 1.65
     });
     io.to(room.code).emit("combatEvent", { type: "shot", attacker: p.id, source: "horsegun" });
+  } else if (w.type === "guitar") {
+    if (!p.longNails || !p.owned.guitar) return false;
+    const id = String(room.arrowSeq++);
+    const cp = Math.cos(p.pitch);
+    room.arrows.set(id, {
+      id, owner: p.id, kind: "soundwave", x: p.x, y: (p.y || 0) + 1.45, z: p.z,
+      dx: -Math.sin(p.yaw) * cp, dy: Math.sin(p.pitch) * 0.10,
+      dz: -Math.cos(p.yaw) * cp, yaw: p.yaw, pitch: p.pitch, life: 1.35
+    });
+    io.to(room.code).emit("combatEvent", { type: "shot", attacker: p.id, source: "guitar" });
   } else {
     io.to(room.code).emit("combatEvent", { type: "swing", attacker: p.id, source: p.weapon });
     const target = pickMeleeTarget(room, p, w);
@@ -519,6 +530,8 @@ function createCrazyMatch(waiting, newcomer, newcomerName) {
   const p2 = createPlayer(newcomer.id, newcomerName, room, 1);
   for (const p of [p1, p2]) {
     p.owned.horsegun = true;
+    p.owned.guitar = false;
+    p.longNails = false;
     p.weapon = "horsegun";
     p.shieldOwned = false;
     p.shieldEquipped = false;
@@ -677,6 +690,21 @@ io.on("connection", socket => {
     if (room.players.size === formatCapacity(room) && [...room.players.values()].every(x => x.ready)) beginCountdown(room);
   });
 
+  socket.on("purchaseCrazy", item => {
+    const room = getRoom(socket);
+    if (!room || room.mode !== "crazy" || room.phase !== "lobby") return;
+    const p = room.players.get(socket.id); if (!p) return;
+
+    if (item === "longNails") {
+      if (p.longNails || p.coins < 60) return;
+      p.coins -= 60; p.longNails = true; emitRoom(room); return;
+    }
+    if (item === "guitar") {
+      if (!p.longNails || p.owned.guitar || p.coins < 110) return;
+      p.coins -= 110; p.owned.guitar = true; p.weapon = "guitar"; emitRoom(room); return;
+    }
+  });
+
   socket.on("purchase", item => {
     const room = getRoom(socket);
     if (!room || room.phase !== "lobby") return;
@@ -703,7 +731,7 @@ io.on("connection", socket => {
     const room = getRoom(socket); if (!room) return;
     const p = room.players.get(socket.id);
     if (!p || !WEAPONS[w] || !p.owned[w]) return;
-    if (room.mode === "crazy" && w !== "horsegun") return;
+    if (room.mode === "crazy" && !["horsegun","guitar"].includes(w)) return;
     p.weapon = w;
     if (w === "bow") p.shieldEquipped = false;
     emitRoom(room);
@@ -795,6 +823,9 @@ setInterval(() => {
         if ((a.kind || "arrow") === "horse") {
           a.x += a.dx * 11.5 * dt; a.z += a.dz * 11.5 * dt; a.y += a.dy * 8.0 * dt;
           a.life -= dt;
+        } else if ((a.kind || "arrow") === "soundwave") {
+          a.x += a.dx * 15.0 * dt; a.z += a.dz * 15.0 * dt; a.y += a.dy * 10.0 * dt;
+          a.life -= dt;
         } else {
           a.x += a.dx * 19 * dt; a.z += a.dz * 19 * dt; a.y += a.dy * 19 * dt;
           a.dy -= 1.75 * dt; a.life -= dt;
@@ -805,15 +836,19 @@ setInterval(() => {
           let hitTarget = null;
           for (const target of targets) {
             const dh = Math.hypot(a.x - target.x, a.z - target.z);
-            const hitRadius = (a.kind || "arrow") === "horse" ? PLAYER_RADIUS + 1.05 : PLAYER_RADIUS + 0.2;
-            const vert = (a.kind || "arrow") === "horse" ? 1.85 : 1.2;
+            const kind = a.kind || "arrow";
+            const hitRadius = kind === "horse" ? PLAYER_RADIUS + 1.05 : (kind === "soundwave" ? PLAYER_RADIUS + 0.80 : PLAYER_RADIUS + 0.2);
+            const vert = kind === "horse" ? 1.85 : (kind === "soundwave" ? 1.55 : 1.2);
             if (dh < hitRadius && Math.abs(a.y - ((target.y || 0) + 1.15)) < vert) {
               hitTarget = target;
               break;
             }
           }
           if (hitTarget) {
-            applyDamage(room, owner, hitTarget, (a.kind || "arrow") === "horse" ? WEAPONS.horsegun.damage : WEAPONS.bow.damage, (a.kind || "arrow") === "horse" ? "horsegun" : "bow");
+            const kind = a.kind || "arrow";
+            const damage = kind === "horse" ? WEAPONS.horsegun.damage : (kind === "soundwave" ? WEAPONS.guitar.damage : WEAPONS.bow.damage);
+            const source = kind === "horse" ? "horsegun" : (kind === "soundwave" ? "guitar" : "bow");
+            applyDamage(room, owner, hitTarget, damage, source);
             room.arrows.delete(id); continue;
           }
         }
