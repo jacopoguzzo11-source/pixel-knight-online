@@ -14,6 +14,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const rooms = new Map();
 const publicQueue = [];
+const crazyQueue = [];
 const PLAYER_RADIUS = 0.56;
 const PLAYER_MIN_DISTANCE = 1.18;
 const TICK = 1000 / 30;
@@ -61,7 +62,8 @@ const WEAPONS = {
   sword: { name: "Spada", type: "melee", damage: 28, reach: 3.35, width: 0.95, cooldown: 500, stamina: 17 },
   spear: { name: "Lancia", type: "melee", damage: 24, reach: 4.65, width: 0.72, cooldown: 650, stamina: 20 },
   axe: { name: "Ascia da guerra", type: "melee", damage: 40, reach: 2.85, width: 1.02, cooldown: 820, stamina: 27 },
-  bow: { name: "Arco", type: "bow", damage: 22, cooldown: 800, stamina: 12 }
+  bow: { name: "Arco", type: "bow", damage: 22, cooldown: 800, stamina: 12 },
+  horsegun: { name: "Crazy Gun", type: "horsegun", damage: 36, cooldown: 980, stamina: 12 }
 };
 const PRICES = { bow: 75, arrows: 20, spear: 65, axe: 85, shield: 120 };
 const SKINS = new Set(["crimson", "azure", "emerald", "obsidian"]);
@@ -123,7 +125,7 @@ function roomPublic(room) {
     botDifficulty: room.botDifficulty || null,
     players: [...room.players.values()].map(playerPublic),
     arrows: [...room.arrows.values()].map(a => ({
-      id: a.id, x: a.x, y: a.y, z: a.z, yaw: a.yaw, pitch: a.pitch, owner: a.owner
+      id: a.id, x: a.x, y: a.y, z: a.z, yaw: a.yaw, pitch: a.pitch, owner: a.owner, kind: a.kind || "arrow"
     })),
     message: room.message || ""
   };
@@ -173,7 +175,7 @@ function createPlayer(id, name, room, index) {
     id, name: sanitizeName(name),
     x: s.x, y: 0, z: s.z, yaw: s.yaw, pitch: 0,
     hp: 100, stamina: 100, weapon: "sword",
-    owned: { sword: true, spear: false, axe: false, bow: false },
+    owned: { sword: true, spear: false, axe: false, bow: false, horsegun: false },
     shieldOwned: false, shieldEquipped: false, blocking: false,
     ammo: 0, coins: 220, score: 0, ready: false,
     attackAt: 0, lastMoveAt: Date.now(), skin: "crimson",
@@ -213,6 +215,12 @@ function resetRound(room) {
     p.x = s.x; p.y = 0; p.z = s.z; p.yaw = s.yaw; p.pitch = 0;
     p.hp = 100; p.stamina = 100; p.blocking = false;
     p.attackAt = 0; p.lastMoveAt = Date.now();
+    if (room.mode === "crazy") {
+      p.owned.horsegun = true;
+      p.weapon = "horsegun";
+      p.shieldOwned = false;
+      p.shieldEquipped = false;
+    }
     if (p.weapon === "bow" && p.ammo < 6) p.ammo = 6;
     if (p.isBot && p.bot) {
       p.bot.nextThink = 0; p.bot.nextGuard = 0; p.bot.guardUntil = 0; p.bot.attackReadyAt = Date.now() + 500;
@@ -367,11 +375,20 @@ function performAttack(room, p, noAmmoSocket = null) {
     const id = String(room.arrowSeq++);
     const cp = Math.cos(p.pitch);
     room.arrows.set(id, {
-      id, owner: p.id, x: p.x, y: (p.y || 0) + 1.55, z: p.z,
+      id, owner: p.id, kind: "arrow", x: p.x, y: (p.y || 0) + 1.55, z: p.z,
       dx: -Math.sin(p.yaw) * cp, dy: Math.sin(p.pitch),
       dz: -Math.cos(p.yaw) * cp, yaw: p.yaw, pitch: p.pitch, life: 2.25
     });
     io.to(room.code).emit("combatEvent", { type: "shot", attacker: p.id, source: "bow" });
+  } else if (w.type === "horsegun") {
+    const id = String(room.arrowSeq++);
+    const cp = Math.cos(p.pitch);
+    room.arrows.set(id, {
+      id, owner: p.id, kind: "horse", x: p.x, y: (p.y || 0) + 1.6, z: p.z,
+      dx: -Math.sin(p.yaw) * cp, dy: Math.sin(p.pitch) * 0.25,
+      dz: -Math.cos(p.yaw) * cp, yaw: p.yaw, pitch: p.pitch, life: 1.65
+    });
+    io.to(room.code).emit("combatEvent", { type: "shot", attacker: p.id, source: "horsegun" });
   } else {
     io.to(room.code).emit("combatEvent", { type: "swing", attacker: p.id, source: p.weapon });
     const target = pickMeleeTarget(room, p, w);
@@ -459,6 +476,22 @@ function updateBot(room, bot, dt, now) {
 }
 
 
+function removeFromCrazyQueue(socketId) {
+  for (let i = crazyQueue.length - 1; i >= 0; i--) {
+    if (crazyQueue[i].id === socketId) crazyQueue.splice(i, 1);
+  }
+}
+
+function takeCrazyWaitingPlayer(excludeId) {
+  while (crazyQueue.length) {
+    const entry = crazyQueue.shift();
+    if (!entry || entry.id === excludeId) continue;
+    const s = io.sockets.sockets.get(entry.id);
+    if (s && s.connected && !s.data.room) return { socket: s, name: entry.name };
+  }
+  return null;
+}
+
 function removeFromPublicQueue(socketId) {
   for (let i = publicQueue.length - 1; i >= 0; i--) {
     if (publicQueue[i].id === socketId) publicQueue.splice(i, 1);
@@ -473,6 +506,36 @@ function takeWaitingPlayer(excludeId) {
     if (s && s.connected && !s.data.room) return { socket: s, name: entry.name };
   }
   return null;
+}
+
+function createCrazyMatch(waiting, newcomer, newcomerName) {
+  let c = roomCode();
+  while (rooms.has(c)) c = roomCode();
+
+  const room = newRoom(c, waiting.socket.id, "crazy", null, "1v1");
+  rooms.set(c, room);
+
+  const p1 = createPlayer(waiting.socket.id, waiting.name, room, 0);
+  const p2 = createPlayer(newcomer.id, newcomerName, room, 1);
+  for (const p of [p1, p2]) {
+    p.owned.horsegun = true;
+    p.weapon = "horsegun";
+    p.shieldOwned = false;
+    p.shieldEquipped = false;
+  }
+  room.players.set(waiting.socket.id, p1);
+  room.players.set(newcomer.id, p2);
+
+  waiting.socket.join(c);
+  newcomer.join(c);
+  waiting.socket.data.room = c;
+  newcomer.data.room = c;
+
+  waiting.socket.emit("matchmakingStatus", { status: "matched", queue: "crazy" });
+  newcomer.emit("matchmakingStatus", { status: "matched", queue: "crazy" });
+  waiting.socket.emit("joined", { code: c, id: waiting.socket.id, mode: "crazy" });
+  newcomer.emit("joined", { code: c, id: newcomer.id, mode: "crazy" });
+  emitRoom(room);
 }
 
 function createPublicMatch(waiting, newcomer, newcomerName) {
@@ -504,6 +567,7 @@ io.on("connection", socket => {
   socket.on("joinPublicQueue", ({ name } = {}) => {
     if (socket.data.room) return;
     removeFromPublicQueue(socket.id);
+    removeFromCrazyQueue(socket.id);
 
     const cleanName = sanitizeName(name);
     const waiting = takeWaitingPlayer(socket.id);
@@ -520,6 +584,28 @@ io.on("connection", socket => {
   socket.on("cancelPublicQueue", () => {
     removeFromPublicQueue(socket.id);
     socket.emit("matchmakingStatus", { status: "cancelled" });
+  });
+
+  socket.on("joinCrazyQueue", ({ name } = {}) => {
+    if (socket.data.room) return;
+    removeFromCrazyQueue(socket.id);
+    removeFromPublicQueue(socket.id);
+
+    const cleanName = sanitizeName(name);
+    const waiting = takeCrazyWaitingPlayer(socket.id);
+
+    if (waiting) {
+      createCrazyMatch(waiting, socket, cleanName);
+      return;
+    }
+
+    crazyQueue.push({ id: socket.id, name: cleanName });
+    socket.emit("matchmakingStatus", { status: "waiting", position: crazyQueue.length, queue: "crazy" });
+  });
+
+  socket.on("cancelCrazyQueue", () => {
+    removeFromCrazyQueue(socket.id);
+    socket.emit("matchmakingStatus", { status: "cancelled", queue: "crazy" });
   });
 
   socket.on("createRoom", ({ name, format } = {}) => {
@@ -617,6 +703,7 @@ io.on("connection", socket => {
     const room = getRoom(socket); if (!room) return;
     const p = room.players.get(socket.id);
     if (!p || !WEAPONS[w] || !p.owned[w]) return;
+    if (room.mode === "crazy" && w !== "horsegun") return;
     p.weapon = w;
     if (w === "bow") p.shieldEquipped = false;
     emitRoom(room);
@@ -705,21 +792,28 @@ setInterval(() => {
       if (bot) updateBot(room, bot, dt, now);
 
       for (const [id, a] of room.arrows) {
-        a.x += a.dx * 19 * dt; a.z += a.dz * 19 * dt; a.y += a.dy * 19 * dt;
-        a.dy -= 1.75 * dt; a.life -= dt;
+        if ((a.kind || "arrow") === "horse") {
+          a.x += a.dx * 11.5 * dt; a.z += a.dz * 11.5 * dt; a.y += a.dy * 8.0 * dt;
+          a.life -= dt;
+        } else {
+          a.x += a.dx * 19 * dt; a.z += a.dz * 19 * dt; a.y += a.dy * 19 * dt;
+          a.dy -= 1.75 * dt; a.life -= dt;
+        }
         const owner = room.players.get(a.owner);
         if (owner) {
           const targets = enemiesOf(room, owner);
           let hitTarget = null;
           for (const target of targets) {
             const dh = Math.hypot(a.x - target.x, a.z - target.z);
-            if (dh < PLAYER_RADIUS + 0.2 && Math.abs(a.y - ((target.y || 0) + 1.15)) < 1.2) {
+            const hitRadius = (a.kind || "arrow") === "horse" ? PLAYER_RADIUS + 1.05 : PLAYER_RADIUS + 0.2;
+            const vert = (a.kind || "arrow") === "horse" ? 1.85 : 1.2;
+            if (dh < hitRadius && Math.abs(a.y - ((target.y || 0) + 1.15)) < vert) {
               hitTarget = target;
               break;
             }
           }
           if (hitTarget) {
-            applyDamage(room, owner, hitTarget, WEAPONS.bow.damage, "bow");
+            applyDamage(room, owner, hitTarget, (a.kind || "arrow") === "horse" ? WEAPONS.horsegun.damage : WEAPONS.bow.damage, (a.kind || "arrow") === "horse" ? "horsegun" : "bow");
             room.arrows.delete(id); continue;
           }
         }
