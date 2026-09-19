@@ -21,12 +21,22 @@ const TICK = 1000 / 30;
 const MAPS = {
   keep: {
     id: "keep", name: "Fortezza di Pietra", arena: 16,
-    spawns: [{ x: -9, z: 0, yaw: -Math.PI / 2 }, { x: 9, z: 0, yaw: Math.PI / 2 }],
+    spawns: [
+      { x: -10, z: -5.5, yaw: -Math.PI / 2 },
+      { x: 10, z: -5.5, yaw: Math.PI / 2 },
+      { x: -10, z: 5.5, yaw: -Math.PI / 2 },
+      { x: 10, z: 5.5, yaw: Math.PI / 2 }
+    ],
     obstacles: [{ x: 0, z: 0, r: 1.65 }]
   },
   forest: {
     id: "forest", name: "Rovine della Foresta", arena: 18,
-    spawns: [{ x: -11, z: -2, yaw: -Math.PI / 2 }, { x: 11, z: 2, yaw: Math.PI / 2 }],
+    spawns: [
+      { x: -11, z: -6, yaw: -Math.PI / 2 },
+      { x: 11, z: -6, yaw: Math.PI / 2 },
+      { x: -11, z: 6, yaw: -Math.PI / 2 },
+      { x: 11, z: 6, yaw: Math.PI / 2 }
+    ],
     obstacles: [
       { x: -5.5, z: -4.0, r: 0.95 }, { x: 5.0, z: 4.5, r: 0.95 },
       { x: -4.0, z: 6.2, r: 0.85 }, { x: 6.0, z: -5.5, r: 0.85 }
@@ -34,7 +44,12 @@ const MAPS = {
   },
   colosseum: {
     id: "colosseum", name: "Colosseo delle Ceneri", arena: 17,
-    spawns: [{ x: 0, z: 10.5, yaw: 0 }, { x: 0, z: -10.5, yaw: Math.PI }],
+    spawns: [
+      { x: -7, z: 10.5, yaw: 0 },
+      { x: 7, z: -10.5, yaw: Math.PI },
+      { x: 7, z: 10.5, yaw: 0 },
+      { x: -7, z: -10.5, yaw: Math.PI }
+    ],
     obstacles: [
       { x: -6.2, z: -6.2, r: 0.8 }, { x: 6.2, z: -6.2, r: 0.8 },
       { x: -6.2, z: 6.2, r: 0.8 }, { x: 6.2, z: 6.2, r: 0.8 }
@@ -70,6 +85,24 @@ function sanitizeName(s) {
 function mapOf(room) { return MAPS[room.map] || MAPS.keep; }
 function forwardFromYaw(yaw) { return { x: -Math.sin(yaw), z: -Math.cos(yaw) }; }
 function spawnForIndex(room, i) { return mapOf(room).spawns[i] || mapOf(room).spawns[0]; }
+function formatCapacity(room) {
+  if (room.mode !== "private") return 2;
+  if (room.privateFormat === "1v1v1") return 3;
+  if (room.privateFormat === "2v2") return 4;
+  return 2;
+}
+function teamForIndex(room, index) {
+  if (room.mode === "private" && room.privateFormat === "2v2") return index % 2;
+  return null;
+}
+function areEnemies(room, a, b) {
+  if (!a || !b || a.id === b.id || b.hp <= 0) return false;
+  if (room.mode === "private" && room.privateFormat === "2v2") return a.team !== b.team;
+  return true;
+}
+function enemiesOf(room, attacker) {
+  return [...room.players.values()].filter(p => areEnemies(room, attacker, p));
+}
 
 function playerPublic(p) {
   return {
@@ -77,13 +110,16 @@ function playerPublic(p) {
     hp: p.hp, stamina: p.stamina, weapon: p.weapon, blocking: p.blocking,
     ammo: p.ammo, coins: p.coins, score: p.score, ready: p.ready,
     owned: p.owned, shieldOwned: p.shieldOwned, shieldEquipped: p.shieldEquipped,
-    skin: p.skin, isBot: !!p.isBot, botDifficulty: p.botDifficulty || null
+    skin: p.skin, isBot: !!p.isBot, botDifficulty: p.botDifficulty || null,
+    team: p.team, alive: p.hp > 0
   };
 }
 function roomPublic(room) {
   return {
     code: room.code, hostId: room.hostId, map: room.map, mapName: mapOf(room).name,
     phase: room.phase, countdown: room.countdown, mode: room.mode,
+    privateFormat: room.privateFormat || "1v1",
+    maxPlayers: formatCapacity(room),
     botDifficulty: room.botDifficulty || null,
     players: [...room.players.values()].map(playerPublic),
     arrows: [...room.arrows.values()].map(a => ({
@@ -94,9 +130,9 @@ function roomPublic(room) {
 }
 function emitRoom(room) { io.to(room.code).emit("state", roomPublic(room)); }
 
-function newRoom(code, hostId, mode = "private", botDifficulty = null) {
+function newRoom(code, hostId, mode = "private", botDifficulty = null, privateFormat = "1v1") {
   return {
-    code, hostId, mode, botDifficulty, map: "keep",
+    code, hostId, mode, botDifficulty, privateFormat, map: "keep",
     players: new Map(), arrows: new Map(),
     phase: "lobby", countdown: 0, message: "", arrowSeq: 1
   };
@@ -119,13 +155,14 @@ function resolveMapCollision(room, x, z) {
   return { x, z };
 }
 function resolvePlayerCollision(room, self, x, z) {
-  const other = [...room.players.values()].find(p => p.id !== self.id);
-  if (!other) return resolveMapCollision(room, x, z);
-  let dx = x - other.x, dz = z - other.z, d = Math.hypot(dx, dz);
-  if (d < PLAYER_MIN_DISTANCE) {
-    if (d < 0.001) { dx = 1; dz = 0; d = 1; }
-    x = other.x + dx / d * PLAYER_MIN_DISTANCE;
-    z = other.z + dz / d * PLAYER_MIN_DISTANCE;
+  for (const other of room.players.values()) {
+    if (other.id === self.id || other.hp <= 0) continue;
+    let dx = x - other.x, dz = z - other.z, d = Math.hypot(dx, dz);
+    if (d < PLAYER_MIN_DISTANCE) {
+      if (d < 0.001) { dx = 1; dz = 0; d = 1; }
+      x = other.x + dx / d * PLAYER_MIN_DISTANCE;
+      z = other.z + dz / d * PLAYER_MIN_DISTANCE;
+    }
   }
   return resolveMapCollision(room, x, z);
 }
@@ -140,6 +177,7 @@ function createPlayer(id, name, room, index) {
     shieldOwned: false, shieldEquipped: false, blocking: false,
     ammo: 0, coins: 220, score: 0, ready: false,
     attackAt: 0, lastMoveAt: Date.now(), skin: "crimson",
+    team: teamForIndex(room, index),
     isBot: false, botDifficulty: null
   };
 }
@@ -149,6 +187,7 @@ function createBot(room, difficulty, index) {
   const p = createPlayer(`BOT-${room.code}`, cfg.name, room, index);
   p.isBot = true;
   p.botDifficulty = difficulty;
+  p.team = 1;
   p.skin = cfg.skin;
   p.weapon = cfg.weapon;
   p.owned = { sword: true, spear: true, axe: true, bow: true };
@@ -189,7 +228,7 @@ function beginCountdown(room) {
   room.phase = "countdown"; room.countdown = 3; emitRoom(room);
   const iv = setInterval(() => {
     if (!rooms.has(room.code)) return clearInterval(iv);
-    if (room.players.size < 2) {
+    if (room.players.size !== formatCapacity(room)) {
       clearInterval(iv); room.phase = "lobby"; room.countdown = 0; emitRoom(room); return;
     }
     room.countdown--;
@@ -197,17 +236,40 @@ function beginCountdown(room) {
     else emitRoom(room);
   }, 1000);
 }
-function endRound(room, loser, winner) {
+function finishRound(room, winner, winnerTeam = null) {
   if (room.phase !== "active") return;
   room.phase = "roundEnd";
-  winner.score++;
-  room.message = `${winner.name} vince il round`;
-  io.to(room.code).emit("roundEnd", { winner: winner.id, loser: loser.id, score: winner.score });
+
+  let winners = [];
+  if (winnerTeam !== null) {
+    winners = [...room.players.values()].filter(p => p.team === winnerTeam);
+    winners.forEach(p => p.score++);
+    room.message = `Squadra ${winnerTeam === 0 ? "A" : "B"} vince il round`;
+  } else if (winner) {
+    winner.score++;
+    winners = [winner];
+    room.message = `${winner.name} vince il round`;
+  } else {
+    room.message = "Round in pareggio";
+  }
+
+  io.to(room.code).emit("roundEnd", {
+    winner: winner ? winner.id : null,
+    winnerTeam,
+    winners: winners.map(p => p.id)
+  });
   emitRoom(room);
-  if (winner.score >= 3) {
+
+  const matchWon = winners.length && winners.some(p => p.score >= 3);
+  if (matchWon) {
     room.phase = "matchEnd";
-    room.message = `${winner.name} vince il duello`;
-    io.to(room.code).emit("matchEnd", { winner: winner.id });
+    if (winnerTeam !== null) room.message = `Squadra ${winnerTeam === 0 ? "A" : "B"} vince il duello`;
+    else room.message = `${winner.name} vince il duello`;
+    io.to(room.code).emit("matchEnd", {
+      winner: winner ? winner.id : null,
+      winnerTeam,
+      winners: winners.map(p => p.id)
+    });
     setTimeout(() => {
       if (!rooms.has(room.code)) return;
       room.players.forEach(p => {
@@ -218,13 +280,42 @@ function endRound(room, loser, winner) {
     }, 6000);
   } else {
     setTimeout(() => {
-      if (rooms.has(room.code) && room.players.size === 2) resetRound(room);
+      if (rooms.has(room.code) && room.players.size === formatCapacity(room)) resetRound(room);
     }, 3500);
   }
 }
 
+function checkRoundOutcome(room) {
+  if (room.phase !== "active") return;
+  const alive = [...room.players.values()].filter(p => p.hp > 0);
+
+  if (room.mode === "private" && room.privateFormat === "2v2") {
+    const teams = [...new Set(alive.map(p => p.team))];
+    if (teams.length === 1) finishRound(room, null, teams[0]);
+    else if (teams.length === 0) finishRound(room, null, null);
+    return;
+  }
+
+  if (alive.length === 1) finishRound(room, alive[0], null);
+  else if (alive.length === 0) finishRound(room, null, null);
+}
+
 function targetOf(room, attacker) {
-  return [...room.players.values()].find(p => p.id !== attacker.id);
+  const enemies = enemiesOf(room, attacker);
+  enemies.sort((a, b) =>
+    Math.hypot(a.x - attacker.x, a.z - attacker.z) -
+    Math.hypot(b.x - attacker.x, b.z - attacker.z)
+  );
+  return enemies[0] || null;
+}
+
+function pickMeleeTarget(room, attacker, weapon) {
+  return enemiesOf(room, attacker)
+    .filter(t => meleeCanHit(attacker, t, weapon))
+    .sort((a, b) =>
+      Math.hypot(a.x - attacker.x, a.z - attacker.z) -
+      Math.hypot(b.x - attacker.x, b.z - attacker.z)
+    )[0] || null;
 }
 function targetFacesAttacker(target, attacker) {
   const f = forwardFromYaw(target.yaw);
@@ -255,7 +346,10 @@ function applyDamage(room, attacker, target, damage, source) {
     attacker: attacker.id, target: target.id, damage: dealt, rawDamage: damage,
     source, x: target.x, z: target.z
   });
-  if (target.hp <= 0) endRound(room, target, attacker);
+  if (target.hp <= 0) {
+    target.blocking = false;
+    checkRoundOutcome(room);
+  }
 }
 
 function performAttack(room, p, noAmmoSocket = null) {
@@ -264,8 +358,6 @@ function performAttack(room, p, noAmmoSocket = null) {
   const now = Date.now();
   if (now - p.attackAt < w.cooldown || p.stamina < w.stamina) return false;
   p.attackAt = now; p.stamina -= w.stamina;
-  const target = targetOf(room, p);
-
   if (w.type === "bow") {
     if (p.ammo <= 0) {
       if (noAmmoSocket) noAmmoSocket.emit("noAmmo");
@@ -282,7 +374,8 @@ function performAttack(room, p, noAmmoSocket = null) {
     io.to(room.code).emit("combatEvent", { type: "shot", attacker: p.id, source: "bow" });
   } else {
     io.to(room.code).emit("combatEvent", { type: "swing", attacker: p.id, source: p.weapon });
-    if (target && meleeCanHit(p, target, w)) applyDamage(room, p, target, w.damage, p.weapon);
+    const target = pickMeleeTarget(room, p, w);
+    if (target) applyDamage(room, p, target, w.damage, p.weapon);
   }
   return true;
 }
@@ -386,7 +479,7 @@ function createPublicMatch(waiting, newcomer, newcomerName) {
   let c = roomCode();
   while (rooms.has(c)) c = roomCode();
 
-  const room = newRoom(c, waiting.socket.id, "public");
+  const room = newRoom(c, waiting.socket.id, "public", null, "1v1");
   rooms.set(c, room);
 
   const p1 = createPlayer(waiting.socket.id, waiting.name, room, 0);
@@ -429,9 +522,10 @@ io.on("connection", socket => {
     socket.emit("matchmakingStatus", { status: "cancelled" });
   });
 
-  socket.on("createRoom", ({ name } = {}) => {
+  socket.on("createRoom", ({ name, format } = {}) => {
+    const privateFormat = ["1v1", "1v1v1", "2v2"].includes(format) ? format : "1v1";
     let c = roomCode(); while (rooms.has(c)) c = roomCode();
-    const room = newRoom(c, socket.id, "private");
+    const room = newRoom(c, socket.id, "private", null, privateFormat);
     rooms.set(c, room);
     const p = createPlayer(socket.id, name, room, 0);
     room.players.set(socket.id, p);
@@ -443,7 +537,7 @@ io.on("connection", socket => {
   socket.on("createBotRoom", ({ name, difficulty } = {}) => {
     const level = BOT_LEVELS[difficulty] ? difficulty : "easy";
     let c = roomCode(); while (rooms.has(c)) c = roomCode();
-    const room = newRoom(c, socket.id, "bot", level);
+    const room = newRoom(c, socket.id, "bot", level, "1v1");
     rooms.set(c, room);
     const p = createPlayer(socket.id, name, room, 0);
     const bot = createBot(room, level, 1);
@@ -459,9 +553,9 @@ io.on("connection", socket => {
     const room = rooms.get(c);
     if (!room) return socket.emit("joinError", "Stanza inesistente.");
     if (room.mode !== "private") return socket.emit("joinError", "Questa stanza non accetta ingressi tramite codice.");
-    if (room.players.size >= 2) return socket.emit("joinError", "La stanza è piena.");
+    if (room.players.size >= formatCapacity(room)) return socket.emit("joinError", "La stanza è piena.");
     if (room.phase !== "lobby") return socket.emit("joinError", "Il duello è già iniziato.");
-    const p = createPlayer(socket.id, name, room, 1);
+    const p = createPlayer(socket.id, name, room, room.players.size);
     room.players.set(socket.id, p);
     socket.join(c); socket.data.room = c;
     socket.emit("joined", { code: c, id: socket.id, mode: "private" });
@@ -494,7 +588,7 @@ io.on("connection", socket => {
     const p = room.players.get(socket.id); if (!p) return;
     p.ready = !p.ready;
     emitRoom(room);
-    if (room.players.size === 2 && [...room.players.values()].every(x => x.ready)) beginCountdown(room);
+    if (room.players.size === formatCapacity(room) && [...room.players.values()].every(x => x.ready)) beginCountdown(room);
   });
 
   socket.on("purchase", item => {
@@ -539,7 +633,7 @@ io.on("connection", socket => {
 
   socket.on("pose", data => {
     const room = getRoom(socket); if (!room) return;
-    const p = room.players.get(socket.id); if (!p || p.isBot) return;
+    const p = room.players.get(socket.id); if (!p || p.isBot || p.hp <= 0) return;
     const now = Date.now();
     const dt = Math.max(0.016, Math.min(0.25, (now - p.lastMoveAt) / 1000));
     p.lastMoveAt = now;
@@ -614,11 +708,18 @@ setInterval(() => {
         a.x += a.dx * 19 * dt; a.z += a.dz * 19 * dt; a.y += a.dy * 19 * dt;
         a.dy -= 1.75 * dt; a.life -= dt;
         const owner = room.players.get(a.owner);
-        const target = [...room.players.values()].find(p => p.id !== a.owner);
-        if (owner && target && target.hp > 0) {
-          const dh = Math.hypot(a.x - target.x, a.z - target.z);
-          if (dh < PLAYER_RADIUS + 0.2 && Math.abs(a.y - ((target.y || 0) + 1.15)) < 1.2) {
-            applyDamage(room, owner, target, WEAPONS.bow.damage, "bow");
+        if (owner) {
+          const targets = enemiesOf(room, owner);
+          let hitTarget = null;
+          for (const target of targets) {
+            const dh = Math.hypot(a.x - target.x, a.z - target.z);
+            if (dh < PLAYER_RADIUS + 0.2 && Math.abs(a.y - ((target.y || 0) + 1.15)) < 1.2) {
+              hitTarget = target;
+              break;
+            }
+          }
+          if (hitTarget) {
+            applyDamage(room, owner, hitTarget, WEAPONS.bow.damage, "bow");
             room.arrows.delete(id); continue;
           }
         }
