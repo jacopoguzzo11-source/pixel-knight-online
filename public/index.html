@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pixel Knight Online Duel v5</title>
+<title>Pixel Knight Online Duel v6</title>
 <style>
 :root{--panel:#141618;--line:#4f4b40;--gold:#d0ad5b;--red:#ad4542;--green:#63885c;--text:#eee9dc;--muted:#aaa495}
 *{box-sizing:border-box}
@@ -76,13 +76,18 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
 
 <div class="overlay show" id="menu">
  <div class="modal">
-  <h1>⚔ Pixel Knight Online Duel v5</h1>
+  <h1>⚔ Pixel Knight Online Duel v6</h1>
   <p>Puoi giocare contro un amico, allenarti contro un bot oppure cercare automaticamente un avversario online.</p>
   <div class="grid2">
    <div class="lobbybox">
     <h3>👥 Stanza privata</h3>
     <input id="createName" maxlength="18" placeholder="Il tuo nome"/>
-    <div style="height:8px"></div><button class="primary" id="createBtn">Crea stanza privata</button>
+    <div style="height:8px"></div>
+    <div class="botBtns">
+      <button class="primary" data-private-format="1v1">1 contro 1</button>
+      <button class="primary" data-private-format="1v1v1">1v1v1</button>
+      <button class="primary" data-private-format="2v2">2 contro 2</button>
+    </div>
    </div>
    <div class="lobbybox">
     <h3>🔗 Entra con codice</h3>
@@ -194,9 +199,11 @@ const SKINS={
 
 let myId=null,roomCode="",state=null,me=null,other=null,playing=false,locked=false;
 let local={x:-9,y:0,z:0,vy:0,onGround:true,yaw:-Math.PI/2,pitch:0,blocking:false};
-let keys={},last=performance.now(),attackAnim=0,hitFlash=0,opponentHitFlash=0,currentMap="";
-let remotePos=new THREE.Vector3(),remoteYaw=0,lobbySignature="",opponentSkin="";
+let keys={},last=performance.now(),attackAnim=0,hitFlash=0,currentMap="";
+let lobbySignature="";
 const arrowMeshes=new Map();
+const remoteAvatars=new Map();
+const remoteHitFlashes=new Map();
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
 renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));renderer.setSize(innerWidth,innerHeight);
@@ -250,14 +257,74 @@ function makeKnight(color=0x6f3436){
  for(const sx of [-1,1]){const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.65,4,8),legMat);leg.position.set(.21*sx,.36,0);leg.castShadow=true;g.add(leg)}
  return g;
 }
-const opponent=makeKnight();scene.add(opponent);opponent.visible=false;
-function applyOpponentSkin(id){const s=SKINS[id]||SKINS.crimson;opponent.userData.bodyMat.color.setHex(s.color);opponentSkin=id}
+function makeNameTag(name){
+ const canvas=document.createElement("canvas");canvas.width=512;canvas.height=96;
+ const ctx=canvas.getContext("2d");
+ ctx.clearRect(0,0,512,96);
+ ctx.fillStyle="rgba(0,0,0,.62)";
+ ctx.fillRect(6,12,500,70);
+ ctx.font="bold 38px system-ui,Segoe UI,Arial";
+ ctx.textAlign="center";ctx.textBaseline="middle";
+ ctx.fillStyle="#ffffff";
+ ctx.fillText(String(name||"Giocatore").slice(0,18),256,47);
+ const tex=new THREE.CanvasTexture(canvas);
+ tex.colorSpace=THREE.SRGBColorSpace;
+ const mat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:true,depthWrite:false});
+ const sprite=new THREE.Sprite(mat);
+ sprite.position.set(0,2.62,0);
+ sprite.scale.set(1.72,.32,1);
+ sprite.userData.texture=tex;
+ return sprite;
+}
+function setAvatarName(avatar,name){
+ if(avatar.name===name)return;
+ if(avatar.tag){
+  avatar.group.remove(avatar.tag);
+  avatar.tag.material?.map?.dispose?.();
+  avatar.tag.material?.dispose?.();
+ }
+ avatar.tag=makeNameTag(name);
+ avatar.group.add(avatar.tag);
+ avatar.name=name;
+}
+function applyRemoteSkin(avatar,id){
+ const s=SKINS[id]||SKINS.crimson;
+ avatar.group.userData.bodyMat.color.setHex(s.color);
+ avatar.skin=id;
+}
+function getRemoteAvatar(p){
+ let avatar=remoteAvatars.get(p.id);
+ if(!avatar){
+  const group=makeKnight();
+  scene.add(group);
+  avatar={group,pos:new THREE.Vector3(p.x,p.y||0,p.z),yaw:p.yaw||0,skin:"",name:"",tag:null};
+  remoteAvatars.set(p.id,avatar);
+ }
+ if(avatar.skin!==p.skin)applyRemoteSkin(avatar,p.skin);
+ setAvatarName(avatar,p.name);
+ return avatar;
+}
+function removeRemoteAvatar(id){
+ const avatar=remoteAvatars.get(id);
+ if(!avatar)return;
+ scene.remove(avatar.group);
+ avatar.tag?.material?.map?.dispose?.();
+ avatar.tag?.material?.dispose?.();
+ remoteAvatars.delete(id);
+ remoteHitFlashes.delete(id);
+}
 
 const vm=new THREE.Group();camera.add(vm);scene.add(camera);
 const skinMat=new THREE.MeshStandardMaterial({color:0xb78d69,roughness:.85});
 const gloveMat=new THREE.MeshStandardMaterial({color:0x55595b,roughness:.55,metalness:.45});
-function arm(x){const a=new THREE.Mesh(new THREE.CapsuleGeometry(.09,.56,4,8),skinMat);a.position.set(x,-.39,-.75);a.rotation.x=1.05;a.rotation.z=x>0?-.12:.12;vm.add(a);const g=new THREE.Mesh(new THREE.BoxGeometry(.22,.18,.22),gloveMat);g.position.set(x,-.27,-1.03);vm.add(g)}
-arm(-.32);arm(.36);
+function arm(x){
+ const a=new THREE.Mesh(new THREE.CapsuleGeometry(.09,.56,4,8),skinMat);
+ a.position.set(x,-.39,-.75);a.rotation.x=1.05;a.rotation.z=x>0?-.12:.12;vm.add(a);
+ const g=new THREE.Mesh(new THREE.BoxGeometry(.22,.18,.22),gloveMat);
+ g.position.set(x,-.27,-1.03);vm.add(g);
+ return {arm:a,glove:g,armBase:a.position.clone(),gloveBase:g.position.clone(),armRot:a.rotation.clone(),gloveRot:g.rotation.clone()};
+}
+const leftHand=arm(-.32),rightHand=arm(.36);
 
 const swordGroup=new THREE.Group(),spearGroup=new THREE.Group(),axeGroup=new THREE.Group(),bowGroup=new THREE.Group(),shieldGroup=new THREE.Group();
 vm.add(swordGroup,spearGroup,axeGroup,bowGroup,shieldGroup);
@@ -299,17 +366,32 @@ function cone(r,h,mat,segments=8){
  const rear=cyl(.048,.16,matDarkSteel);rear.rotation.x=Math.PI/2;rear.position.z=.87;spearGroup.add(rear);
 }
 
-// ASCIA: manico, collare e testa sagomata.
+// ASCIA: orientata come un'ascia impugnata normalmente, lama leggibile di fronte.
 {
- const handle=cyl(.044,.92,matWood);handle.rotation.x=Math.PI/2;handle.position.z=.04;axeGroup.add(handle);
- const collar=cyl(.065,.16,matGold);collar.rotation.x=Math.PI/2;collar.position.z=-.43;axeGroup.add(collar);
- const headCore=boxMesh(.24,.20,.15,matDarkSteel);headCore.position.z=-.52;axeGroup.add(headCore);
+ const handle=cyl(.042,.94,matWood);handle.rotation.x=Math.PI/2;handle.position.z=.02;axeGroup.add(handle);
+ const lowerWrap=cyl(.052,.25,matLeather);lowerWrap.rotation.x=Math.PI/2;lowerWrap.position.z=.37;axeGroup.add(lowerWrap);
+ const collar=cyl(.062,.14,matGold);collar.rotation.x=Math.PI/2;collar.position.z=-.45;axeGroup.add(collar);
+ const headCore=boxMesh(.24,.17,.14,matDarkSteel);headCore.position.z=-.54;axeGroup.add(headCore);
+
  const shape=new THREE.Shape();
- shape.moveTo(0,0);shape.lineTo(.36,.08);shape.lineTo(.48,.30);shape.lineTo(.28,.34);shape.lineTo(.04,.22);shape.closePath();
- const geo=new THREE.ExtrudeGeometry(shape,{depth:.075,bevelEnabled:true,bevelThickness:.02,bevelSize:.015,bevelSegments:1});
+ shape.moveTo(-.04,-.20);
+ shape.lineTo(.29,-.16);
+ shape.lineTo(.44,0);
+ shape.lineTo(.29,.16);
+ shape.lineTo(-.04,.20);
+ shape.lineTo(.05,0);
+ shape.closePath();
+ const geo=new THREE.ExtrudeGeometry(shape,{depth:.07,bevelEnabled:true,bevelThickness:.015,bevelSize:.012,bevelSegments:1});
  geo.center();
- const blade=new THREE.Mesh(geo,matSteel);blade.scale.set(1.05,1.05,1);blade.rotation.y=Math.PI/2;blade.position.set(.24,.02,-.54);blade.castShadow=true;axeGroup.add(blade);
- const backSpike=cone(.11,.34,matSteel,6);backSpike.rotation.z=-Math.PI/2;backSpike.position.set(-.27,.02,-.54);axeGroup.add(backSpike);
+ const blade=new THREE.Mesh(geo,matSteel);
+ blade.position.set(.26,.015,-.555);
+ blade.castShadow=true;
+ axeGroup.add(blade);
+
+ const backSpike=cone(.085,.30,matSteel,6);
+ backSpike.rotation.z=Math.PI/2;
+ backSpike.position.set(-.27,.015,-.555);
+ axeGroup.add(backSpike);
 }
 
 // ARCO: arco curvo, corda dinamica e freccia visibile durante la tensione.
@@ -333,24 +415,40 @@ const arrowTip=cone(.045,.16,matSteel,6);arrowTip.rotation.x=-Math.PI/2;arrowTip
 const feather1=boxMesh(.11,.025,.17,new THREE.MeshStandardMaterial({color:0x7c3030,roughness:.85}));feather1.position.z=.12;bowArrow.add(feather1);
 bowGroup.add(bowArrow);
 
-// SCUDO: bordo, placca centrale e borchie. A riposo resta abbassato.
+// SCUDO: più piccolo e piatto verso l'avversario, non di taglio.
 {
- const disc=new THREE.Mesh(new THREE.CylinderGeometry(.49,.52,.075,16),matShield);disc.rotation.z=Math.PI/2;disc.castShadow=true;shieldGroup.add(disc);
- const rim=new THREE.Mesh(new THREE.TorusGeometry(.495,.035,8,22),matDarkSteel);rim.rotation.y=Math.PI/2;shieldGroup.add(rim);
- const boss=new THREE.Mesh(new THREE.SphereGeometry(.13,12,9),matGold);boss.scale.x=.45;boss.position.x=-.06;shieldGroup.add(boss);
- for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const stud=new THREE.Mesh(new THREE.SphereGeometry(.028,8,6),matGold);stud.position.set(-.055,Math.cos(a)*.36,Math.sin(a)*.36);shieldGroup.add(stud)}
+ const disc=new THREE.Mesh(new THREE.CylinderGeometry(.34,.36,.055,18),matShield);
+ disc.rotation.x=Math.PI/2;
+ disc.castShadow=true;
+ shieldGroup.add(disc);
+
+ const rim=new THREE.Mesh(new THREE.TorusGeometry(.345,.024,8,24),matDarkSteel);
+ rim.position.z=-.032;
+ shieldGroup.add(rim);
+
+ const boss=new THREE.Mesh(new THREE.SphereGeometry(.095,12,9),matGold);
+ boss.scale.z=.42;
+ boss.position.z=-.045;
+ shieldGroup.add(boss);
+
+ for(let i=0;i<8;i++){
+  const a=i/8*Math.PI*2;
+  const stud=new THREE.Mesh(new THREE.SphereGeometry(.020,8,6),matGold);
+  stud.position.set(Math.cos(a)*.25,Math.sin(a)*.25,-.045);
+  shieldGroup.add(stud);
+ }
 }
 
 const weaponBase={
  sword:{pos:new THREE.Vector3(.38,-.25,-.86),rot:new THREE.Euler(.08,-.12,-.08)},
  spear:{pos:new THREE.Vector3(.33,-.29,-.78),rot:new THREE.Euler(.02,-.04,0)},
- axe:{pos:new THREE.Vector3(.39,-.26,-.82),rot:new THREE.Euler(.10,-.10,-.08)},
+ axe:{pos:new THREE.Vector3(.39,-.31,-.78),rot:new THREE.Euler(.10,.02,-.16)},
  bow:{pos:new THREE.Vector3(.35,-.08,-.83),rot:new THREE.Euler(.02,-.14,.04)}
 };
-const shieldLowPos=new THREE.Vector3(-.57,-.72,-.72);
-const shieldHighPos=new THREE.Vector3(-.20,-.08,-.61);
-const shieldLowRot=new THREE.Euler(.30,.30,-.16);
-const shieldHighRot=new THREE.Euler(.02,.08,.04);
+const shieldLowPos=new THREE.Vector3(-.48,-.66,-.72);
+const shieldHighPos=new THREE.Vector3(-.37,-.33,-.78);
+const shieldLowRot=new THREE.Euler(.10,-.10,-.18);
+const shieldHighRot=new THREE.Euler(.02,-.04,-.06);
 
 for(const [id,g] of Object.entries({sword:swordGroup,spear:spearGroup,axe:axeGroup,bow:bowGroup})){
  g.position.copy(weaponBase[id].pos);g.rotation.copy(weaponBase[id].rot);
@@ -368,25 +466,38 @@ function setEquipment(){
 
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}addEventListener("resize",resize);
 function meFromState(){return state?.players?.find(p=>p.id===myId)||null}
-function otherFromState(){return state?.players?.find(p=>p.id!==myId)||null}
+function othersFromState(){return state?.players?.filter(p=>p.id!==myId)||[]}
+function otherFromState(){return othersFromState()[0]||null}
 function weaponName(p){return WEAPON_NAMES[p?.weapon]||"⚔ Spada"}
+function formatLabel(){return state?.privateFormat==="1v1v1"?"1v1v1":(state?.privateFormat==="2v2"?"2v2":"1v1")}
 
 function refreshHud(){
  me=meFromState();other=otherFromState();if(!me)return;
- ui.meName.textContent=me.name;ui.roomLabel.textContent=state?.mode==="bot"?"Allenamento contro bot":(state?.mode==="public"?"Partita pubblica":"Stanza "+roomCode);ui.mapLabel.textContent=state?.mapName||"";
+ ui.meName.textContent=me.name;
+ ui.roomLabel.textContent=state?.mode==="bot"?"Allenamento contro bot":(state?.mode==="public"?"Partita pubblica":`Stanza ${roomCode} · ${formatLabel()}`);
+ ui.mapLabel.textContent=state?.mapName||"";
  ui.hpFill.style.width=me.hp+"%";ui.hpText.textContent=Math.round(me.hp);ui.stFill.style.width=me.stamina+"%";ui.stText.textContent=Math.round(me.stamina);
  ui.weapon.textContent=weaponName(me)+(me.shieldEquipped?" + 🛡":"");
  ui.ammo.textContent=me.weapon==="bow"?"Frecce: "+me.ammo:(me.shieldOwned?(me.shieldEquipped?"Scudo equipaggiato":"Scudo nello zaino"):"");
  ui.block.style.display=local.blocking&&me.shieldEquipped?"block":"none";
- ui.score.textContent=`${me.score||0} — ${other?.score||0}`;setEquipment();
- if(other?.skin&&other.skin!==opponentSkin)applyOpponentSkin(other.skin);
+
+ if(state?.mode==="private"&&state?.privateFormat==="2v2"){
+  const a=Math.max(0,...state.players.filter(p=>p.team===0).map(p=>p.score||0));
+  const b=Math.max(0,...state.players.filter(p=>p.team===1).map(p=>p.score||0));
+  ui.score.textContent=`Squadra A ${a} — ${b} Squadra B`;
+ }else if((state?.players?.length||0)>2){
+  ui.score.textContent=state.players.map(p=>`${p.name} ${p.score||0}`).join(" · ");
+ }else{
+  ui.score.textContent=`${me.score||0} — ${other?.score||0}`;
+ }
+ setEquipment();
 }
 
 function lobbySig(s){
  if(!s)return"";
  return JSON.stringify({
-  phase:s.phase,map:s.map,mode:s.mode,botDifficulty:s.botDifficulty,hostId:s.hostId,
-  players:s.players.map(p=>({id:p.id,ready:p.ready,weapon:p.weapon,coins:p.coins,ammo:p.ammo,owned:p.owned,shieldOwned:p.shieldOwned,shieldEquipped:p.shieldEquipped,skin:p.skin,score:p.score}))
+  phase:s.phase,map:s.map,mode:s.mode,privateFormat:s.privateFormat,maxPlayers:s.maxPlayers,botDifficulty:s.botDifficulty,hostId:s.hostId,
+  players:s.players.map(p=>({id:p.id,ready:p.ready,weapon:p.weapon,coins:p.coins,ammo:p.ammo,owned:p.owned,shieldOwned:p.shieldOwned,shieldEquipped:p.shieldEquipped,skin:p.skin,score:p.score,team:p.team,alive:p.alive,name:p.name}))
  });
 }
 function flashSelection(text){const e=document.getElementById("selectionStatus");e.textContent="✓ "+text;clearTimeout(flashSelection.t);flashSelection.t=setTimeout(()=>{e.textContent=""},1200)}
@@ -442,14 +553,19 @@ function renderShieldSelector(){
 function refreshLobby(){
  if(!state||!me)return;
  const isBot=state.mode==="bot",isPublic=state.mode==="public";
- document.getElementById("lobbyTitle").textContent=isBot?`Allenamento · ${other?.name||"Bot"}`:(isPublic?`Partita pubblica · ${other?.name||"Avversario"}`:"Stanza privata");
+ document.getElementById("lobbyTitle").textContent=isBot?`Allenamento · ${other?.name||"Bot"}`:(isPublic?`Partita pubblica · ${other?.name||"Avversario"}`:`Stanza privata · ${formatLabel()}`);
  document.getElementById("roomCode").style.display=(isBot||isPublic)?"none":"block";
  document.getElementById("roomCode").textContent=roomCode;
- document.getElementById("lobbyHelp").textContent=isBot?"Scegli mappa, skin ed equipaggiamento. Quando sei pronto, premi Pronto.":(isPublic?"Avversario trovato. Scegli equipaggiamento e skin; l'host può scegliere la mappa. Poi entrambi premete Pronto.":"Invia il codice al tuo amico. L'host sceglie la mappa; poi entrambi premete Pronto.");
+ document.getElementById("lobbyHelp").textContent=isBot
+  ?"Scegli mappa, skin ed equipaggiamento. Quando sei pronto, premi Pronto."
+  :(isPublic
+    ?"Avversario trovato. Scegli equipaggiamento e skin; l'host può scegliere la mappa. Poi entrambi premete Pronto."
+    :`Invia il codice agli altri giocatori. Servono ${state.maxPlayers} giocatori per iniziare. L'host sceglie la mappa.`);
  const ps=document.getElementById("players");ps.innerHTML="";
  state.players.forEach(p=>{
   const d=document.createElement("div");d.className="lobbybox";d.style.margin="6px 0";
-  d.innerHTML=`<b>${p.name}</b>${p.id===state.hostId?" · 👑 HOST":""}${p.isBot?" · 🤖":""}<br><span class="small">${weaponName(p)} ${p.shieldEquipped?" + 🛡":""} · Skin: ${(SKINS[p.skin]||SKINS.crimson).name}${p.isBot?"":` · 🪙 ${p.coins} · ➶ ${p.ammo}`} ${p.ready?"· ✅ PRONTO":""}</span>`;
+  const team=(state.mode==="private"&&state.privateFormat==="2v2")?` · Squadra ${p.team===0?"A":"B"}`:"";
+  d.innerHTML=`<b>${p.name}</b>${p.id===state.hostId?" · 👑 HOST":""}${p.isBot?" · 🤖":""}${team}<br><span class="small">${weaponName(p)} ${p.shieldEquipped?" + 🛡":""} · Skin: ${(SKINS[p.skin]||SKINS.crimson).name}${p.isBot?"":` · 🪙 ${p.coins} · ➶ ${p.ammo}`} ${p.ready?"· ✅ PRONTO":""}</span>`;
   ps.appendChild(d);
  });
  renderMapButtons();renderSkins();renderStore();renderWeaponSelector();renderShieldSelector();refreshInventory();
@@ -470,12 +586,17 @@ function refreshInventory(){
  }
 }
 function showMessage(t,ms=1500){ui.center.textContent=t;setTimeout(()=>{if(ui.center.textContent===t)ui.center.textContent=""},ms)}
-function showDamageNumber(amount,blocked=false,heavy=false){
+function showDamageNumber(amount,blocked=false,heavy=false,targetId=null){
  let x=innerWidth*.5,y=innerHeight*.42;
- if(other){const v=new THREE.Vector3(other.x,(other.y||0)+1.9,other.z).project(camera);if(v.z<1){x=(v.x*.5+.5)*innerWidth;y=(-v.y*.5+.5)*innerHeight}}
+ const target=state?.players?.find(p=>p.id===targetId)||other;
+ if(target){
+  const v=new THREE.Vector3(target.x,(target.y||0)+1.9,target.z).project(camera);
+  if(v.z<1){x=(v.x*.5+.5)*innerWidth;y=(-v.y*.5+.5)*innerHeight}
+ }
  const e=document.createElement("div");e.className="damageNum"+(blocked?" blocked":"")+(heavy?" heavy":"");e.textContent=amount;
  e.style.left=(x+(Math.random()-.5)*18)+"px";e.style.top=(y+(Math.random()-.5)*12)+"px";ui.damageNumbers.appendChild(e);setTimeout(()=>e.remove(),850);
- ui.cross.classList.add("hit");setTimeout(()=>ui.cross.classList.remove("hit"),110);opponentHitFlash=.18;
+ ui.cross.classList.add("hit");setTimeout(()=>ui.cross.classList.remove("hit"),110);
+ if(targetId)remoteHitFlashes.set(targetId,.18);
 }
 function enterArena(){lobby.classList.remove("show");playing=true;renderer.domElement.requestPointerLock?.()}
 function openInventory(){if(!playing)return;document.exitPointerLock?.();refreshInventory();inventory.classList.add("show")}
@@ -506,16 +627,21 @@ socket.on("state",s=>{
  if(me&&!locked&&playing&&state.phase!=="active"){local.x=me.x;local.y=me.y||0;local.z=me.z;local.yaw=me.yaw;local.pitch=me.pitch}
 });
 socket.on("roundStart",()=>{showMessage("DUELLO!",1200);me=meFromState();if(me){local.x=me.x;local.y=0;local.z=me.z;local.vy=0;local.onGround=true;local.yaw=me.yaw;local.pitch=0}enterArena()});
-socket.on("roundEnd",d=>showMessage(d.winner===myId?"ROUND VINTO":"ROUND PERSO",2600));
-socket.on("matchEnd",d=>{showMessage(d.winner===myId?"HAI VINTO IL DUELLO":"DUELLO PERSO",5000);setTimeout(()=>{document.exitPointerLock?.();playing=false;lobby.classList.add("show")},5600)});
-socket.on("opponentLeft",()=>{showMessage("L'avversario si è disconnesso",3000);lobby.classList.add("show");playing=false});
+function mySideWon(d){
+ const nowMe=meFromState();
+ if(d.winnerTeam!==null&&d.winnerTeam!==undefined)return nowMe?.team===d.winnerTeam;
+ return d.winner===myId;
+}
+socket.on("roundEnd",d=>showMessage(mySideWon(d)?"ROUND VINTO":"ROUND FINITO",2600));
+socket.on("matchEnd",d=>{showMessage(mySideWon(d)?"HAI VINTO IL DUELLO":"DUELLO FINITO",5000);setTimeout(()=>{document.exitPointerLock?.();playing=false;lobby.classList.add("show")},5600)});
+socket.on("opponentLeft",()=>{showMessage("Un giocatore si è disconnesso",3000);lobby.classList.add("show");playing=false});
 socket.on("noAmmo",()=>showMessage("Nessuna freccia",900));
 socket.on("combatEvent",e=>{
  if(e.target===myId){if(e.type==="hit"){hitFlash=.22;ui.damage.style.opacity=".76"}if(e.type==="block")showMessage("PARATA",500)}
- if(e.attacker===myId&&(e.type==="hit"||e.type==="block"))showDamageNumber(e.damage,e.type==="block",e.source==="axe");
+ if(e.attacker===myId&&(e.type==="hit"||e.type==="block"))showDamageNumber(e.damage,e.type==="block",e.source==="axe",e.target);
 });
 
-document.getElementById("createBtn").addEventListener("click",()=>socket.emit("createRoom",{name:document.getElementById("createName").value}));
+document.querySelectorAll("[data-private-format]").forEach(b=>b.addEventListener("click",()=>socket.emit("createRoom",{name:document.getElementById("createName").value,format:b.dataset.privateFormat})));
 document.getElementById("joinBtn").addEventListener("click",()=>socket.emit("joinRoom",{name:document.getElementById("joinName").value,code:document.getElementById("joinCode").value}));
 document.querySelectorAll("[data-bot]").forEach(b=>b.addEventListener("click",()=>socket.emit("createBotRoom",{name:document.getElementById("botName").value,difficulty:b.dataset.bot})));
 document.getElementById("publicBtn").addEventListener("click",()=>socket.emit("joinPublicQueue",{name:document.getElementById("publicName").value}));
@@ -564,11 +690,19 @@ function resolveLocalMapCollision(x,z){
  for(const o of m.obstacles){let dx=x-o.x,dz=z-o.z,d=Math.hypot(dx,dz),min=o.r+rad;if(d<min){if(d<.001){dx=1;dz=0;d=1}x=o.x+dx/d*min;z=o.z+dz/d*min}}return{x,z}
 }
 function resolveLocalPlayerCollision(x,z){
- if(!other)return resolveLocalMapCollision(x,z);let dx=x-other.x,dz=z-other.z,d=Math.hypot(dx,dz),min=1.18;
- if(d<min){if(d<.001){dx=1;dz=0;d=1}x=other.x+dx/d*min;z=other.z+dz/d*min}return resolveLocalMapCollision(x,z)
+ const others=othersFromState().filter(p=>p.hp>0);
+ for(const p of others){
+  let dx=x-p.x,dz=z-p.z,d=Math.hypot(dx,dz),min=1.18;
+  if(d<min){
+   if(d<.001){dx=1;dz=0;d=1}
+   x=p.x+dx/d*min;z=p.z+dz/d*min;
+  }
+ }
+ return resolveLocalMapCollision(x,z)
 }
 function updateLocal(dt){
  if(!playing||!me)return;
+ if(me.hp<=0){local.blocking=false;return}
  if(state?.phase!=="active"){local.blocking=false;local.y=0;local.vy=0;local.onGround=true;return}
  if(!local.onGround||local.vy>0){local.vy-=16.8*dt;local.y+=local.vy*dt;if(local.y<=0){local.y=0;local.vy=0;local.onGround=true}}
  let forward=0,side=0;if(keys.KeyW)forward+=1;if(keys.KeyS)forward-=1;if(keys.KeyD)side+=1;if(keys.KeyA)side-=1;
@@ -587,6 +721,12 @@ function lerpEuler(obj,target,amount){
  obj.rotation.y+= (target.y-obj.rotation.y)*amount;
  obj.rotation.z+= (target.z-obj.rotation.z)*amount;
 }
+function resetHandPose(hand,amount){
+ hand.arm.position.lerp(hand.armBase,amount);
+ hand.glove.position.lerp(hand.gloveBase,amount);
+ lerpEuler(hand.arm,hand.armRot,amount);
+ lerpEuler(hand.glove,hand.gloveRot,amount);
+}
 function animateWeapons(dt){
  const groups={sword:swordGroup,spear:spearGroup,axe:axeGroup,bow:bowGroup};
  const currentId=me?.weapon||"sword";
@@ -597,12 +737,21 @@ function animateWeapons(dt){
   grp.position.lerp(weaponBase[id].pos,settle);
   lerpEuler(grp,weaponBase[id].rot,settle);
  }
+ resetHandPose(leftHand,settle);
+ resetHandPose(rightHand,settle);
 
- // Scudo: normalmente basso; col tasto destro sale davanti al corpo.
+ // Lo scudo resta basso a sinistra e si alza solo quanto basta per parare.
  const shieldTargetPos=local.blocking?shieldHighPos:shieldLowPos;
  const shieldTargetRot=local.blocking?shieldHighRot:shieldLowRot;
- shieldGroup.position.lerp(shieldTargetPos,Math.min(1,dt*15));
- lerpEuler(shieldGroup,shieldTargetRot,Math.min(1,dt*15));
+ const shieldEase=Math.min(1,dt*13);
+ shieldGroup.position.lerp(shieldTargetPos,shieldEase);
+ lerpEuler(shieldGroup,shieldTargetRot,shieldEase);
+ if(local.blocking&&me?.shieldEquipped){
+  leftHand.arm.position.lerp(new THREE.Vector3(-.28,-.29,-.72),shieldEase);
+  leftHand.glove.position.lerp(new THREE.Vector3(-.31,-.24,-.91),shieldEase);
+  leftHand.arm.rotation.x+=(-.18-leftHand.arm.rotation.x)*shieldEase;
+  leftHand.arm.rotation.z+=(.26-leftHand.arm.rotation.z)*shieldEase;
+ }
 
  if(attackAnim>0&&current&&currentId!=="bow"){
   const total=currentId==="axe"?.58:(currentId==="spear"?.36:.44);
@@ -610,18 +759,38 @@ function animateWeapons(dt){
   const p=1-attackAnim/total;
 
   if(currentId==="spear"){
-   // Affondo diritto: la lancia va in avanti e torna indietro.
    const thrust=Math.sin(Math.PI*p);
    current.position.z=weaponBase.spear.pos.z-thrust*.92;
-   current.position.y=weaponBase.spear.pos.y+Math.sin(Math.PI*p)*.035;
+   current.position.y=weaponBase.spear.pos.y+thrust*.035;
   }else if(currentId==="axe"){
-   // Colpo pesante dall'alto verso il basso.
-   const wind=Math.sin(Math.PI*p);
-   current.rotation.x=weaponBase.axe.rot.x-wind*1.38;
-   current.rotation.z=weaponBase.axe.rot.z-wind*.52;
-   current.position.y=weaponBase.axe.pos.y+wind*.18;
+   // Movimento in due fasi: caricamento alto a destra, poi colpo secco in avanti e verso il basso.
+   const windEnd=.30;
+   let lift=0,chop=0;
+   if(p<windEnd){
+    const t=p/windEnd;
+    lift=Math.sin(t*Math.PI/2);
+   }else{
+    const t=(p-windEnd)/(1-windEnd);
+    lift=Math.cos(t*Math.PI/2);
+    chop=Math.sin(t*Math.PI);
+   }
+
+   current.position.x=weaponBase.axe.pos.x+.10*lift-.14*chop;
+   current.position.y=weaponBase.axe.pos.y+.34*lift-.20*chop;
+   current.position.z=weaponBase.axe.pos.z+.10*lift-.48*chop;
+   current.rotation.x=weaponBase.axe.rot.x-.55*lift+1.10*chop;
+   current.rotation.z=weaponBase.axe.rot.z+.52*lift-.72*chop;
+   current.rotation.y=weaponBase.axe.rot.y-.10*chop;
+
+   rightHand.arm.position.x=rightHand.armBase.x+.05*lift-.08*chop;
+   rightHand.arm.position.y=rightHand.armBase.y+.13*lift-.06*chop;
+   rightHand.arm.position.z=rightHand.armBase.z+.06*lift-.18*chop;
+   rightHand.glove.position.x=rightHand.gloveBase.x+.06*lift-.10*chop;
+   rightHand.glove.position.y=rightHand.gloveBase.y+.18*lift-.08*chop;
+   rightHand.glove.position.z=rightHand.gloveBase.z+.08*lift-.27*chop;
+   rightHand.arm.rotation.x=rightHand.armRot.x-.42*lift+.48*chop;
+   rightHand.arm.rotation.z=rightHand.armRot.z-.18*lift-.18*chop;
   }else{
-   // Fendente diagonale della spada.
    const slash=Math.sin(Math.PI*p);
    current.rotation.x=weaponBase.sword.rot.x-slash*.72;
    current.rotation.z=weaponBase.sword.rot.z-slash*1.10;
@@ -631,12 +800,10 @@ function animateWeapons(dt){
   }
  }
 
- // Arco: tieni premuto per tendere, rilascia per scoccare.
  if(currentId==="bow"){
   if(bowDrawing) bowDraw=Math.min(1,bowDraw+dt*2.3);
   else bowDraw=Math.max(0,bowDraw-dt*(bowRelease>0?8:4.5));
   if(bowRelease>0) bowRelease=Math.max(0,bowRelease-dt);
-
   const pull=.34*bowDraw;
   bowString.geometry.setFromPoints([
    new THREE.Vector3(0,.62,0),
@@ -654,10 +821,44 @@ function animateWeapons(dt){
 }
 function updateVisuals(dt){
  camera.position.set(local.x,1.68+local.y,local.z);camera.rotation.y=local.yaw;camera.rotation.x=local.pitch;
- const moving=keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD;vm.position.y=(moving&&local.onGround)?Math.sin(performance.now()*.012)*.012:0;animateWeapons(dt);setEquipment();
- if(other){opponent.visible=true;remotePos.lerp(new THREE.Vector3(other.x,other.y||0,other.z),Math.min(1,dt*12));opponent.position.copy(remotePos);let dy=other.yaw-remoteYaw;while(dy>Math.PI)dy-=Math.PI*2;while(dy<-Math.PI)dy+=Math.PI*2;remoteYaw+=dy*Math.min(1,dt*12);opponent.rotation.y=remoteYaw}else opponent.visible=false;
- if(opponentHitFlash>0){opponentHitFlash-=dt;opponent.traverse(o=>{if(o.material?.emissive)o.material.emissive.setHex(0x6b1717)})}else opponent.traverse(o=>{if(o.material?.emissive)o.material.emissive.setHex(0x000000)});
- const ids=new Set();if(state)for(const a of state.arrows){ids.add(a.id);let m=arrowMeshes.get(a.id);if(!m){m=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.9,7),new THREE.MeshStandardMaterial({color:0xc8ad75,roughness:.8}));m.rotation.x=Math.PI/2;m.castShadow=true;scene.add(m);arrowMeshes.set(a.id,m)}m.position.set(a.x,a.y,a.z);m.rotation.y=a.yaw;m.rotation.x=Math.PI/2-a.pitch}
+ const moving=keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD;
+ vm.position.y=(moving&&local.onGround)?Math.sin(performance.now()*.012)*.012:0;
+ animateWeapons(dt);setEquipment();
+
+ const activeIds=new Set();
+ for(const p of othersFromState()){
+  activeIds.add(p.id);
+  const avatar=getRemoteAvatar(p);
+  avatar.group.visible=p.hp>0;
+  if(p.hp>0){
+   avatar.pos.lerp(new THREE.Vector3(p.x,p.y||0,p.z),Math.min(1,dt*12));
+   avatar.group.position.copy(avatar.pos);
+   let dy=p.yaw-avatar.yaw;
+   while(dy>Math.PI)dy-=Math.PI*2;
+   while(dy<-Math.PI)dy+=Math.PI*2;
+   avatar.yaw+=dy*Math.min(1,dt*12);
+   avatar.group.rotation.y=avatar.yaw;
+  }
+
+  let flash=remoteHitFlashes.get(p.id)||0;
+  if(flash>0){
+   flash-=dt;remoteHitFlashes.set(p.id,flash);
+   avatar.group.traverse(o=>{if(o.material?.emissive)o.material.emissive.setHex(0x6b1717)});
+  }else{
+   avatar.group.traverse(o=>{if(o.material?.emissive)o.material.emissive.setHex(0x000000)});
+  }
+ }
+ for(const id of [...remoteAvatars.keys()])if(!activeIds.has(id))removeRemoteAvatar(id);
+
+ const ids=new Set();
+ if(state)for(const a of state.arrows){
+  ids.add(a.id);let m=arrowMeshes.get(a.id);
+  if(!m){
+   m=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.9,7),new THREE.MeshStandardMaterial({color:0xc8ad75,roughness:.8}));
+   m.rotation.x=Math.PI/2;m.castShadow=true;scene.add(m);arrowMeshes.set(a.id,m)
+  }
+  m.position.set(a.x,a.y,a.z);m.rotation.y=a.yaw;m.rotation.x=Math.PI/2-a.pitch;
+ }
  for(const [id,m] of arrowMeshes)if(!ids.has(id)){scene.remove(m);arrowMeshes.delete(id)}
  if(hitFlash>0){hitFlash-=dt;if(hitFlash<=0)ui.damage.style.opacity="0"}
 }
