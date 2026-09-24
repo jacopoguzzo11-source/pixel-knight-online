@@ -1,29 +1,15 @@
-PIXEL KNIGHT - REINSTALLAZIONE PULITA v12
+PIXEL KNIGHT CLEAN v13 - FIX PRONTO
 
-QUESTO PACCHETTO È COMPLETO. NON È UNA PATCH.
+Questa versione corregge il pulsante PRONTO:
+- niente dipendenza dalla risposta callback/timeout;
+- il client invia direttamente lo stato pronto sì/no;
+- il server aggiorna e trasmette lo stato a tutti;
+- il pulsante resta cliccabile in lobby;
+- quando tutti i giocatori richiesti sono pronti, parte il countdown.
 
-STRUTTURA DA AVERE SU GITHUB:
-/
-  server.js
-  package.json
-  render.yaml
-  .gitignore
-  README.txt
-  AVVIA_SERVER_WINDOWS.bat
-  CARICA_SU_GITHUB.txt
-  public/
-    index.html
+SOSTITUISCI SU GITHUB:
+1. server.js nella root
+2. public/index.html dentro public
+3. package.json nella root
 
-IMPORTANTE:
-- Non serve caricare vecchi ZIP nel repository.
-- Il vecchio index.html nella root, se esiste, non viene usato da Express.
-- La pagina vera del gioco è public/index.html.
-- Render deve usare runtime Node.
-- Build Command: npm install
-- Start Command: node server.js
-
-CONTROLLO DOPO IL DEPLOY:
-Aprendo il gioco deve comparire:
-Pixel Knight Online Duel CLEAN v12
-
-Se compare un'altra versione, Render/browser sta ancora mostrando il vecchio deploy.
+Poi Render -> Manual Deploy -> Deploy latest commit.

@@ -709,21 +709,33 @@ io.on("connection", socket => {
     emitRoom(room);
   });
 
-  socket.on("ready", (_payload = {}, ack) => {
-    const reply = typeof ack === "function" ? ack : () => {};
-    const room = getRoom(socket);
-    if (!room) return reply({ ok: false, message: "Stanza non trovata." });
-    if (room.phase !== "lobby") return reply({ ok: false, message: "La partita sta già iniziando." });
-    const p = room.players.get(socket.id);
-    if (!p) return reply({ ok: false, message: "Giocatore non trovato." });
-
-    p.ready = !p.ready;
+  function updateReadyState(room, p, desired) {
+    if (!room || !p || room.phase !== "lobby") return false;
+    p.ready = !!desired;
     emitRoom(room);
-    const readyCount = [...room.players.values()].filter(x => x.ready).length;
-    const needed = formatCapacity(room);
-    reply({ ok: true, ready: p.ready, readyCount, needed });
 
-    if (room.players.size === needed && [...room.players.values()].every(x => x.ready)) beginCountdown(room);
+    const needed = formatCapacity(room);
+    if (room.players.size === needed && [...room.players.values()].every(x => x.ready)) {
+      beginCountdown(room);
+    }
+    return true;
+  }
+
+  socket.on("setReady", ({ ready } = {}) => {
+    const room = getRoom(socket);
+    if (!room || room.phase !== "lobby") return;
+    const p = room.players.get(socket.id);
+    if (!p) return;
+    updateReadyState(room, p, ready);
+  });
+
+  // Compatibilità con eventuali client vecchi.
+  socket.on("ready", () => {
+    const room = getRoom(socket);
+    if (!room || room.phase !== "lobby") return;
+    const p = room.players.get(socket.id);
+    if (!p) return;
+    updateReadyState(room, p, !p.ready);
   });
 
   socket.on("purchaseCrazy", (item, ack) => {
@@ -913,4 +925,4 @@ setInterval(() => {
   }
 }, TICK);
 
-server.listen(PORT, () => console.log(`Pixel Knight Online CLEAN v12: http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Pixel Knight Online CLEAN v13: http://localhost:${PORT}`));
