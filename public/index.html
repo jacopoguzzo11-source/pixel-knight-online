@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pixel Knight Online Duel CLEAN v12</title>
+<title>Pixel Knight Online Duel CLEAN v13</title>
 <style>
 :root{--panel:#141618;--line:#4f4b40;--gold:#d0ad5b;--red:#ad4542;--green:#63885c;--text:#eee9dc;--muted:#aaa495}
 *{box-sizing:border-box}
@@ -82,8 +82,8 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
 }
 
 
-#readyBar{position:sticky;bottom:-20px;background:#121416;border-top:1px solid #4b483f;padding:10px 0 18px;z-index:3}
-#readyBtn{min-width:170px;min-height:48px}
+#readyBar{position:sticky;bottom:0;background:#121416;border-top:1px solid #4b483f;padding:12px 0 18px;z-index:50;pointer-events:auto}
+#readyBtn{min-width:170px;min-height:48px;pointer-events:auto;position:relative;z-index:10;touch-action:manipulation}
 #crazyShop button{min-height:44px}
 .crazyOk{color:#8fd58b}.crazyErr{color:#e58d82}
 </style>
@@ -139,7 +139,7 @@ input{width:100%;background:#0d0e0f;border:1px solid #565348;color:white;border-
 
 <div class="overlay show" id="menu">
  <div class="modal">
-  <h1>⚔ Pixel Knight Online Duel CLEAN v12</h1>
+  <h1>⚔ Pixel Knight Online Duel CLEAN v13</h1>
   <p>Puoi giocare contro un amico, allenarti contro un bot oppure cercare automaticamente un avversario online.</p>
   <div class="grid2">
    <div class="lobbybox">
@@ -871,7 +871,7 @@ function refreshLobby(){
  });
  renderMapButtons();renderSkins();renderStore();renderCrazyShop();renderWeaponSelector();renderShieldSelector();refreshInventory();
  const rb=document.getElementById("readyBtn");
- rb.disabled=state.phase!=="lobby";
+ rb.disabled=false;
  rb.textContent=me.ready?"✓ Sei pronto · clicca per annullare":"✓ Pronto";
  const readyCount=state.players.filter(p=>p.ready).length;
  const needed=state.maxPlayers||state.players.length;
@@ -964,14 +964,19 @@ document.getElementById("publicBtn").addEventListener("click",()=>socket.emit("j
 document.getElementById("crazyBtn").addEventListener("click",()=>socket.emit("joinCrazyQueue",{name:document.getElementById("crazyName").value}));
 document.getElementById("cancelMatch").addEventListener("click",()=>{socket.emit("cancelPublicQueue");socket.emit("cancelCrazyQueue")});
 document.getElementById("readyBtn").addEventListener("click",()=>{
+ if(!state||!me||state.phase!=="lobby"){
+  flashSelection("Il pulsante Pronto è disponibile nella lobby");
+  return;
+ }
+ const desired=!me.ready;
+
+ // Aggiornamento visivo immediato: il server poi conferma con il nuovo stato.
  const b=document.getElementById("readyBtn");
- if(b.disabled)return;
- b.disabled=true;
- socket.timeout(2500).emit("ready",{},(err,res)=>{
-  if(err){b.disabled=false;flashSelection("Errore: il server non ha risposto");return}
-  if(!res?.ok){b.disabled=false;flashSelection(res?.message||"Impossibile cambiare Pronto");return}
-  flashSelection(res.ready?`Sei pronto · ${res.readyCount}/${res.needed}`:`Pronto annullato · ${res.readyCount}/${res.needed}`);
- });
+ b.disabled=false;
+ b.textContent=desired?"✓ Sei pronto":"✓ Pronto";
+ document.getElementById("readyStatus").textContent=desired?"Invio Pronto...":"Annullamento Pronto...";
+
+ socket.emit("setReady",{ready:desired});
 });
 document.getElementById("closeInv").addEventListener("click",closeInventory);
 
