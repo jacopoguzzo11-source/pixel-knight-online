@@ -10,6 +10,7 @@ const io = new Server(server, {
   cors: { origin: "*" },
   transports: ["websocket", "polling"]
 });
+app.get("/health", (_req, res) => res.status(200).send("ok"));
 app.use(express.static(path.join(__dirname, "public")));
 
 const rooms = new Map();
@@ -912,4 +913,4 @@ setInterval(() => {
   }
 }, TICK);
 
-server.listen(PORT, () => console.log(`Pixel Knight Online v4: http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Pixel Knight Online CLEAN v12: http://localhost:${PORT}`));

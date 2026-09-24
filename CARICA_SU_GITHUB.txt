@@ -1,0 +1,29 @@
+PIXEL KNIGHT - REINSTALLAZIONE PULITA v12
+
+QUESTO PACCHETTO È COMPLETO. NON È UNA PATCH.
+
+STRUTTURA DA AVERE SU GITHUB:
+/
+  server.js
+  package.json
+  render.yaml
+  .gitignore
+  README.txt
+  AVVIA_SERVER_WINDOWS.bat
+  CARICA_SU_GITHUB.txt
+  public/
+    index.html
+
+IMPORTANTE:
+- Non serve caricare vecchi ZIP nel repository.
+- Il vecchio index.html nella root, se esiste, non viene usato da Express.
+- La pagina vera del gioco è public/index.html.
+- Render deve usare runtime Node.
+- Build Command: npm install
+- Start Command: node server.js
+
+CONTROLLO DOPO IL DEPLOY:
+Aprendo il gioco deve comparire:
+Pixel Knight Online Duel CLEAN v12
+
+Se compare un'altra versione, Render/browser sta ancora mostrando il vecchio deploy.
